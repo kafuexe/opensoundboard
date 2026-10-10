@@ -1,0 +1,92 @@
+"""YouTube (and anything else yt-dlp supports) to MP3, with optional trimming."""
+from __future__ import annotations
+
+import re
+import shutil
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+_TIME = re.compile(r"^\s*(?:(\d+):)?(?:(\d+):)?(\d+(?:\.\d+)?)\s*$")
+
+
+def parse_time(text: str) -> float | None:
+    """'1:23', '83', '0:01:23.5' -> seconds. Empty -> None. Raises ValueError on junk."""
+    if not text or not text.strip():
+        return None
+    m = _TIME.match(text)
+    if not m:
+        raise ValueError(f"'{text}' isn't a time. Use seconds or m:ss, like 1:23")
+    a, b, sec = m.groups()
+    hours, minutes = (int(a), int(b)) if b is not None else (0, int(a or 0))
+    return hours * 3600 + minutes * 60 + float(sec)
+
+
+def looks_like_url(text: str) -> bool:
+    return bool(re.match(r"^https?://\S+$", text.strip()))
+
+
+@dataclass
+class YouTubeResult:
+    path: Path
+    title: str
+
+
+def ffmpeg_path() -> str | None:
+    return shutil.which("ffmpeg")
+
+
+def download_mp3(
+    url: str,
+    start: float | None = None,
+    end: float | None = None,
+    on_progress: Callable[[float, str], None] | None = None,
+) -> YouTubeResult:
+    """Download the audio of one video as MP3 into a temp folder. on_progress(fraction, message)."""
+    import yt_dlp
+    from yt_dlp.utils import download_range_func
+
+    if not ffmpeg_path():
+        raise RuntimeError("ffmpeg isn't installed. Install it (winget install ffmpeg) and restart the app.")
+    if start is not None and end is not None and end <= start:
+        raise ValueError("The end time has to be after the start time")
+
+    out_dir = Path(tempfile.mkdtemp(prefix="yt-"))
+
+    def hook(d: dict) -> None:
+        if not on_progress:
+            return
+        if d.get("status") == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            frac = (d.get("downloaded_bytes", 0) / total) if total else 0.0
+            on_progress(min(frac, 1.0) * 0.9, "Downloading…")
+        elif d.get("status") == "finished":
+            on_progress(0.92, "Converting to MP3…")
+
+    opts = {
+        "format": "bestaudio/best",
+        "outtmpl": str(out_dir / "%(id)s.%(ext)s"),
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
+        "progress_hooks": [hook],
+        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
+    }
+    if start is not None or end is not None:
+        opts["download_ranges"] = download_range_func(None, [(start or 0, end if end is not None else float("inf"))])
+        opts["force_keyframes_at_cuts"] = True
+
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+    if info is None:
+        raise RuntimeError("Couldn't read that link")
+    if "entries" in info:  # a playlist link slipped through; take the first video
+        info = next(iter(info["entries"] or []), None) or {}
+    mp3s = sorted(out_dir.glob("*.mp3"))
+    if not mp3s:
+        raise RuntimeError("The download finished but no MP3 was produced")
+    if on_progress:
+        on_progress(1.0, "Done")
+    return YouTubeResult(mp3s[0], info.get("title") or mp3s[0].stem)

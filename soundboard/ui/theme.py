@@ -1,0 +1,67 @@
+"""Design tokens. Slate console surfaces; amber is reserved for 'live' (something is playing)."""
+import customtkinter as ctk
+
+CONSOLE = "#1B2130"  # window background
+PANEL = "#232B3B"  # sidebar, bars
+RAISED = "#2E3850"  # pads, inputs
+RAISED_HOVER = "#38445F"
+LINE = "#3A465E"
+TEXT = "#E8EBF1"
+MUTED = "#8D97AA"
+AMBER = "#F2B33D"  # on air
+AMBER_INK = "#2A1E05"  # text on amber
+DANGER = "#E2604B"
+OK = "#7FC79A"
+
+FAMILY = "Bahnschrift"
+FAMILY_NARROW = "Bahnschrift SemiCondensed"
+
+PAD_W = 168
+PAD_H = 104
+GAP = 10
+
+
+def font(size: int = 14, weight: str = "normal", narrow: bool = False) -> ctk.CTkFont:
+    return ctk.CTkFont(family=FAMILY_NARROW if narrow else FAMILY, size=size, weight=weight)
+
+
+def setup() -> None:
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("dark-blue")
+
+
+def button(master, text: str, command=None, kind: str = "secondary", **kw) -> ctk.CTkButton:
+    styles = {
+        "primary": dict(fg_color=TEXT, hover_color="#FFFFFF", text_color=CONSOLE),
+        "secondary": dict(fg_color=RAISED, hover_color=RAISED_HOVER, text_color=TEXT),
+        "ghost": dict(fg_color="transparent", hover_color=RAISED, text_color=MUTED),
+        "danger": dict(fg_color="transparent", hover_color="#4A2A2A", text_color=DANGER, border_width=1, border_color=DANGER),
+    }
+    opts = dict(corner_radius=8, height=34, font=font(14))
+    opts.update(styles[kind])
+    opts.update(kw)
+    return ctk.CTkButton(master, text=text, command=command, **opts)
+
+
+def entry(master, placeholder: str = "", **kw) -> ctk.CTkEntry:
+    opts = dict(fg_color=RAISED, border_color=LINE, border_width=1, text_color=TEXT,
+                placeholder_text_color=MUTED, corner_radius=8, height=36, font=font(14))
+    opts.update(kw)
+    return ctk.CTkEntry(master, placeholder_text=placeholder, **opts)
+
+
+def label(master, text: str = "", size: int = 14, color: str = TEXT, weight: str = "normal", **kw) -> ctk.CTkLabel:
+    return ctk.CTkLabel(master, text=text, text_color=color, font=font(size, weight), **kw)
+
+
+def keycap(master, hotkey: str) -> ctk.CTkLabel:
+    """A hotkey drawn like a key: the pad's identity in the grid."""
+    text = format_hotkey(hotkey) if hotkey else "no key"
+    return ctk.CTkLabel(
+        master, text=text, font=font(11, narrow=True), text_color=TEXT if hotkey else MUTED,
+        fg_color=CONSOLE if hotkey else "transparent", corner_radius=5, height=20, padx=6,
+    )
+
+
+def format_hotkey(hotkey: str) -> str:
+    return "+".join(part.capitalize() if len(part) > 1 else part.upper() for part in hotkey.split("+"))
