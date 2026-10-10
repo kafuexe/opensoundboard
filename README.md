@@ -7,11 +7,10 @@ your microphone at the same time, at two separate volumes.
 
 ```
 py -3.14 -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python -m soundboard
+.venv\Scripts\pip install -e .
 ```
 
-Or double-click `run.bat` once the venv exists. YouTube downloads also need ffmpeg on your PATH
+Then double-click `run.bat`, or run `C:\projects\Soundboard\.venv\Scripts\soundboard.exe` from anywhere. YouTube downloads also need ffmpeg on your PATH
 (`winget install ffmpeg`).
 
 ## What it does

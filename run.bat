@@ -1,3 +1,2 @@
 @echo off
-cd /d %~dp0
-start "" .venv\Scripts\pythonw.exe -m soundboard
+start "" "%~dp0.venv\Scripts\soundboard.exe"
