@@ -76,7 +76,7 @@ class FolderTabs(ctk.CTkFrame):
         self.buttons.clear()
         lib = self.view.app.library
         tabs: list[tuple[str | None, str]] = [(ALL, "All")]
-        if lib.folders:
+        if lib.folders and lib.folder_count(UNSORTED):
             tabs.append((UNSORTED, "Unsorted"))
         tabs += [(f, f) for f in lib.folders]
 
@@ -144,6 +144,8 @@ class LibraryView(ctk.CTkFrame):
         lib = self.app.library
         if self.folder and self.folder not in lib.folders:
             self.folder = ALL
+        if self.folder == UNSORTED and not lib.folder_count(UNSORTED):
+            self.folder = ALL  # its tab is hidden once it's empty
         self.tabs.render()
         query = self.search.get().strip()
         visible = lib.search(query, self.folder)
@@ -162,8 +164,6 @@ class LibraryView(ctk.CTkFrame):
         if not visible:
             if query:
                 text = f"Nothing matches “{query}” here."
-            elif self.folder == UNSORTED:
-                text = "Every sound is in a folder."
             else:
                 text = (f"“{self.folder}” is empty.\nRight-click a sound and choose Move to folder, "
                         "or add new sounds while this folder is open.")
