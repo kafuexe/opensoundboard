@@ -7,6 +7,7 @@ from ..audio.engine import AudioEngine
 from ..hotkeys import HotkeyManager
 from ..library import Library
 from ..settings import Settings
+from . import drop
 from . import theme as t
 from .browse_view import BrowseView
 from .dispatch import Dispatcher
@@ -38,7 +39,7 @@ class Fader(ctk.CTkFrame):
         self.value_label.configure(text=f"{round(v * 100)}%")
 
 
-class App(ctk.CTk):
+class App(ctk.CTk, drop.WindowMixin):
     def __init__(self):
         t.setup()
         super().__init__()
@@ -70,6 +71,9 @@ class App(ctk.CTk):
         self._build_on_air_bar()
         self._toast = None
         self._current = ""
+        # Every big area is a drop target; Windows delivers a drop to the nearest registered ancestor.
+        drop.enable(self, [self, self.content, self.sidebar, self.bar, *self.views.values(),
+                           self.views["library"].grid_area])
 
         self.show("library")
         self.library_changed()
@@ -78,7 +82,7 @@ class App(ctk.CTk):
 
     # --- layout ----------------------------------------------------------------------------
     def _build_sidebar(self) -> None:
-        side = ctk.CTkFrame(self, fg_color=t.PANEL, corner_radius=0, width=236)
+        side = self.sidebar = ctk.CTkFrame(self, fg_color=t.PANEL, corner_radius=0, width=236)
         side.grid(row=0, column=0, sticky="nsw")
         side.grid_propagate(False)
         side.grid_columnconfigure(0, weight=1)
