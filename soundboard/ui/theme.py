@@ -1,4 +1,6 @@
 """Design tokens. Slate console surfaces; amber is reserved for 'live' (something is playing)."""
+import tkinter as tk
+
 import customtkinter as ctk
 
 CONSOLE = "#1B2130"  # window background
@@ -54,6 +56,12 @@ def label(master, text: str = "", size: int = 14, color: str = TEXT, weight: str
     return ctk.CTkLabel(master, text=text, text_color=color, font=font(size, weight), **kw)
 
 
+def menu(master) -> tk.Menu:
+    """A native popup menu in the app's colors."""
+    return tk.Menu(master, tearoff=False, bg=PANEL, fg=TEXT, activebackground=RAISED_HOVER,
+                   activeforeground=TEXT, selectcolor=TEXT, bd=0, relief="flat", font=(FAMILY, 11))
+
+
 def keycap(master, hotkey: str) -> ctk.CTkLabel:
     """A hotkey drawn like a key: the pad's identity in the grid."""
     text = format_hotkey(hotkey) if hotkey else "no key"
@@ -65,3 +73,40 @@ def keycap(master, hotkey: str) -> ctk.CTkLabel:
 
 def format_hotkey(hotkey: str) -> str:
     return "+".join(part.capitalize() if len(part) > 1 else part.upper() for part in hotkey.split("+"))
+
+
+class Spinner(ctk.CTkFrame):
+    """A rotating arc with an optional caption. Animates only between start() and stop()."""
+
+    SIZE = 18
+
+    def __init__(self, master, text: str = "", bg: str = CONSOLE):
+        super().__init__(master, fg_color="transparent")
+        self.canvas = tk.Canvas(self, width=self.SIZE, height=self.SIZE, bg=bg, highlightthickness=0, bd=0)
+        self.canvas.pack(side="left")
+        self.arc = self.canvas.create_arc(2, 2, self.SIZE - 2, self.SIZE - 2, start=90, extent=270,
+                                          style="arc", outline=TEXT, width=2)
+        self.caption = label(self, text, size=13, color=MUTED)
+        self.caption.pack(side="left", padx=(8, 0))
+        self._angle = 90
+        self._job = None
+
+    def start(self, text: str | None = None) -> None:
+        if text is not None:
+            self.caption.configure(text=text)
+        if self._job is None:
+            self._spin()
+
+    def stop(self) -> None:
+        if self._job is not None:
+            self.after_cancel(self._job)
+            self._job = None
+
+    def _spin(self) -> None:
+        self._angle = (self._angle - 12) % 360
+        self.canvas.itemconfigure(self.arc, start=self._angle)
+        self._job = self.after(30, self._spin)
+
+    def destroy(self) -> None:
+        self.stop()
+        super().destroy()

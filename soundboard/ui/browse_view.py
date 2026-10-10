@@ -23,7 +23,7 @@ class ResultRow(ctk.CTkFrame):
 
         self.play = ctk.CTkButton(self, text="▶", width=34, height=30, corner_radius=6, fg_color=t.RAISED,
                                   hover_color=t.RAISED_HOVER, text_color=t.TEXT, font=t.font(13),
-                                  command=lambda: view.preview(self))
+                                  command=lambda: view.toggle_preview(self))
         self.play.grid(row=0, column=0, padx=(8, 10), pady=8)
         t.label(self, sound.name, size=14, anchor="w").grid(row=0, column=1, sticky="w")
         t.label(self, sound.category, size=12, color=t.MUTED).grid(row=0, column=2, padx=12)
@@ -48,6 +48,8 @@ class BrowseView(ctk.CTkFrame):
         self.page = 0
         self.loaded_once = False
         self._request = 0  # ignore late responses from older searches
+        self._preview_request = 0
+        self.preview_row: ResultRow | None = None  # the row whose button shows a stop square right now
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
@@ -75,6 +77,7 @@ class BrowseView(ctk.CTkFrame):
         self.results.grid(row=2, column=0, sticky="nsew", padx=(18, 8), pady=(0, 12))
         self.results.grid_columnconfigure(0, weight=1)
         self.more = t.button(self.results, "Load more", self.load_more, width=140)
+        self.spinner = t.Spinner(self.results)
         self.after(400, self._prefetch)
 
     def _prefetch(self) -> None:
@@ -107,6 +110,7 @@ class BrowseView(ctk.CTkFrame):
 
     def _load(self, reset: bool) -> None:
         if reset:
+            self._reset_preview_row()
             for row in self.rows:
                 row.destroy()
             self.rows.clear()
@@ -114,7 +118,13 @@ class BrowseView(ctk.CTkFrame):
         self.more.grid_forget()
         self._request += 1
         request, page, query, feed = self._request, self.page + 1, self.query, self.feed
-        self.status.configure(text="Searching…" if query else f"Loading {feed.lower()} sounds…", text_color=t.MUTED)
+        if reset:
+            self.status.configure(text="")
+            caption = "Searching…" if query else f"Loading {feed.lower()} sounds…"
+        else:
+            caption = "Loading more…"
+        self.spinner.grid(row=len(self.rows), column=0, pady=14)
+        self.spinner.start(caption)
 
         def work() -> Page:
             if query:
@@ -124,6 +134,7 @@ class BrowseView(ctk.CTkFrame):
         def done(result: Page) -> None:
             if request != self._request:
                 return
+            self._hide_spinner()
             self.page = result.page
             for sound in result.sounds:
                 row = ResultRow(self.results, self, sound)
@@ -140,33 +151,67 @@ class BrowseView(ctk.CTkFrame):
 
         def failed(exc: Exception) -> None:
             if request == self._request:
+                self._hide_spinner()
                 self.status.configure(text="Can't reach soundbuttonsworld.com. Check your connection and try again.",
                                       text_color=t.DANGER)
+                if self.rows:  # let them retry the page that failed
+                    self.more.grid(row=len(self.rows), column=0, pady=10)
 
         self.app.dispatch.run_in_background(work, done, failed)
 
+    def _hide_spinner(self) -> None:
+        self.spinner.stop()
+        self.spinner.grid_forget()
+        self.status.configure(text_color=t.MUTED)
+
     # --- row actions -----------------------------------------------------------------------
-    def preview(self, row: ResultRow) -> None:
+    def toggle_preview(self, row: ResultRow) -> None:
+        """Play plays the sound in your headphones; stop (the square) stops it."""
+        if row is self.preview_row:
+            self.app.engine.stop_preview()
+            self._reset_preview_row()
+            return
+        self.app.engine.stop_preview()
+        self._reset_preview_row()
+        self.preview_row = row
         row.play.configure(text="…")
+        self._preview_request += 1
+        request = self._preview_request
 
         def work() -> Path:
             path = self.client.download(row.sound, self.cache_dir)
-            self.app.engine.preview(path)
+            if request == self._preview_request:  # still the one they asked for
+                self.app.engine.preview(path)
             return path
 
         def done(_path) -> None:
-            if row.winfo_exists():
-                row.play.configure(text="▶")
+            if request == self._preview_request and row.winfo_exists():
+                row.play.configure(text="■")
 
         def failed(exc: Exception) -> None:
-            if row.winfo_exists():
-                row.play.configure(text="▶")
+            if request == self._preview_request:
+                self._reset_preview_row()
             self.app.toast(f"Couldn't play “{row.sound.name}”: {exc}", error=True)
 
         self.app.dispatch.run_in_background(work, done, failed)
 
+    def _reset_preview_row(self) -> None:
+        row, self.preview_row = self.preview_row, None
+        self._preview_request += 1
+        if row is not None and row.winfo_exists():
+            row.play.configure(text="▶")
+
+    def tick(self) -> None:
+        """Called by the app's poll: flip the stop square back to play when a preview ends on its own."""
+        row = self.preview_row
+        if (row is not None and row.winfo_exists() and row.play.cget("text") == "■"
+                and not self.app.engine.previewing()):
+            self._reset_preview_row()
+
     def add(self, row: ResultRow) -> None:
         row.add.configure(text="Adding…", state="disabled")
+
+        folder = self.app.target_folder()
 
         def work() -> Path:
             return self.client.download(row.sound, self.cache_dir)
@@ -174,14 +219,14 @@ class BrowseView(ctk.CTkFrame):
         def done(path: Path) -> None:
             try:
                 self.app.library.add_file(path, name=row.sound.name, origin="soundbuttonsworld",
-                                         origin_id=row.sound.file_name)
+                                         origin_id=row.sound.file_name, folder=folder)
             except (ValueError, OSError) as exc:
                 failed(exc)
                 return
             self.app.library_changed()
             if row.winfo_exists():
                 row.mark_added()
-            self.app.toast(f"Added “{row.sound.name}”")
+            self.app.toast(self.app.added_message(row.sound.name, folder))
 
         def failed(exc: Exception) -> None:
             if row.winfo_exists():

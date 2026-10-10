@@ -75,6 +75,7 @@ class YouTubeView(ctk.CTkFrame):
         self.progress.pack(anchor="w", pady=(14, 0), before=self.status)
         self._say("Starting…")
         name = self.name.get().strip()
+        folder = self.app.target_folder()
 
         def on_progress(frac: float, message: str) -> None:
             self.app.dispatch.call(lambda: (self.progress.set(frac), self._say(message)))
@@ -85,12 +86,13 @@ class YouTubeView(ctk.CTkFrame):
         def done(result: youtube.YouTubeResult) -> None:
             self._finish()
             try:
-                sound = self.app.library.add_file(result.path, name=name or result.title, origin="youtube", move=True)
+                sound = self.app.library.add_file(result.path, name=name or result.title, origin="youtube", move=True,
+                                              folder=folder)
             except (ValueError, OSError) as exc:
                 self._say(f"Downloaded, but couldn't add it: {exc}", error=True)
                 return
             self.app.library_changed()
-            self._say(f"Added “{sound.name}” to My sounds.", ok=True)
+            self._say(f"Added “{sound.name}” to {folder or 'My sounds'}.", ok=True)
             for field in (self.url, self.name, self.start_field, self.end_field):
                 field.delete(0, "end")
 

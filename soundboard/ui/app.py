@@ -159,6 +159,29 @@ class App(ctk.CTk):
         except Exception as exc:
             self.dispatch.call(lambda: self.toast(f"Can't play “{sound.name}”: {exc}", error=True))
 
+    def toggle_sound(self, sound_id: str) -> None:
+        """Click behavior: start the sound, or stop it if it's already playing."""
+        if sound_id in self.engine.playing():
+            self.engine.stop(sound_id)
+        else:
+            self.play_sound(sound_id)
+
+    def remove_sound(self, sound_id: str) -> None:
+        sound = self.library.get(sound_id)
+        if sound is None:
+            return
+        self.engine.stop(sound_id)
+        self.engine.cache.forget(sound.path)
+        self.library.remove(sound_id)
+        self.library_changed()
+
+    def target_folder(self) -> str:
+        """Folder for newly added sounds: whichever folder is open in My sounds."""
+        return self.views["library"].target_folder()
+
+    def added_message(self, name: str, folder: str) -> str:
+        return f"Added “{name}” to {folder}" if folder else f"Added “{name}”"
+
     def library_changed(self) -> None:
         self.views["library"].render()
         self._bind_hotkeys()
@@ -191,6 +214,7 @@ class App(ctk.CTk):
         """Poll playback state ~12x a second to drive the pads and the on-air bar."""
         playing = self.engine.playing()
         self.views["library"].set_live(playing)
+        self.views["browse"].tick()
         if playing:
             names = [s.name for s in self.library.sounds if s.id in playing]
             first = next((s for s in self.library.sounds if s.id in playing), None)

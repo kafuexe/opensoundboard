@@ -81,6 +81,15 @@ class SoundDialog(ctk.CTkToplevel):
         self.conflict.pack(anchor="w", pady=(0, 10))
         self.hotkey.on_change = self._check_conflict
 
+        t.label(body, "Folder", color=t.MUTED, size=13).pack(anchor="w")
+        self.folder = ctk.CTkOptionMenu(body, values=["Unsorted"] + app.library.folders, width=400, font=t.font(13),
+                                        dropdown_font=t.font(13), fg_color=t.RAISED, button_color=t.RAISED_HOVER,
+                                        button_hover_color=t.LINE, text_color=t.TEXT, dropdown_fg_color=t.PANEL,
+                                        dropdown_hover_color=t.RAISED, dropdown_text_color=t.TEXT,
+                                        dynamic_resizing=False)
+        self.folder.set(sound.folder or "Unsorted")
+        self.folder.pack(anchor="w", pady=(4, 14))
+
         vol_row = ctk.CTkFrame(body, fg_color="transparent")
         vol_row.pack(anchor="w", fill="x")
         t.label(vol_row, "Volume", color=t.MUTED, size=13).pack(side="left")
@@ -98,11 +107,20 @@ class SoundDialog(ctk.CTkToplevel):
         t.button(actions, "Delete", self._delete, kind="danger", width=80).pack(side="left")
         t.button(actions, "Save", self._save, kind="primary", width=90).pack(side="right")
         t.button(actions, "Cancel", self.destroy, kind="ghost", width=80).pack(side="right", padx=6)
-        t.button(actions, "▶ Play", lambda: app.play_sound(self.sound_id), kind="secondary", width=80).pack(side="right", padx=(0, 6))
+        self.play_btn = t.button(actions, "▶ Play", lambda: app.toggle_sound(self.sound_id), kind="secondary", width=80)
+        self.play_btn.pack(side="right", padx=(0, 6))
+        self._sync_play()
 
         self.bind("<Return>", lambda _e: self._save())
         self.bind("<Escape>", lambda _e: self.destroy())
         self.after(120, self._focus)
+
+    def _sync_play(self) -> None:
+        if not self.winfo_exists():
+            return
+        playing = self.sound_id in self.app.engine.playing()
+        self.play_btn.configure(text="■ Stop" if playing else "▶ Play")
+        self.after(100, self._sync_play)
 
     def _focus(self) -> None:
         self.lift()
@@ -123,7 +141,9 @@ class SoundDialog(ctk.CTkToplevel):
         if hotkey and hotkey == self.app.settings.stop_hotkey:
             self.app.settings.stop_hotkey = ""
             self.app.settings.save()
-        self.app.library.update(self.sound_id, name=self.name.get(), hotkey=hotkey, volume=round(self.volume.get(), 2))
+        folder = self.folder.get()
+        self.app.library.update(self.sound_id, name=self.name.get(), hotkey=hotkey, volume=round(self.volume.get(), 2),
+                                folder="" if folder == "Unsorted" else folder)
         self.app.library_changed()
         self.destroy()
 
@@ -135,10 +155,7 @@ class SoundDialog(ctk.CTkToplevel):
         confirm = ConfirmDialog(self, f"Delete “{sound.name}”?", "The sound file is removed from your library.", "Delete")
         self.wait_window(confirm)
         if confirm.confirmed:
-            self.app.engine.stop(self.sound_id)
-            self.app.engine.cache.forget(sound.path)
-            self.app.library.remove(self.sound_id)
-            self.app.library_changed()
+            self.app.remove_sound(self.sound_id)
             self.destroy()
 
 
@@ -163,4 +180,47 @@ class ConfirmDialog(ctk.CTkToplevel):
 
     def _yes(self) -> None:
         self.confirmed = True
+        self.destroy()
+
+
+class TextPromptDialog(ctk.CTkToplevel):
+    """Ask for one line of text. validate(text) returns the value to keep, or raises ValueError with
+    a message shown under the field."""
+
+    def __init__(self, master, title: str, field: str, action: str, validate, initial: str = ""):
+        super().__init__(master)
+        self.result = None
+        self.validate = validate
+        self.title(title)
+        self.configure(fg_color=t.CONSOLE)
+        self.resizable(False, False)
+        self.transient(master)
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.pack(padx=24, pady=20)
+        t.label(body, field, color=t.MUTED, size=13).pack(anchor="w")
+        self.entry = t.entry(body, width=320)
+        self.entry.insert(0, initial)
+        self.entry.pack(anchor="w", pady=(4, 4))
+        self.error = t.label(body, "", color=t.DANGER, size=12)
+        self.error.pack(anchor="w", pady=(0, 10))
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x")
+        t.button(row, action, self._ok, kind="primary", width=90).pack(side="right")
+        t.button(row, "Cancel", self.destroy, kind="ghost", width=80).pack(side="right", padx=6)
+        self.bind("<Return>", lambda _e: self._ok())
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.after(100, self._focus)
+
+    def _focus(self) -> None:
+        self.lift()
+        self.grab_set()
+        self.entry.focus_set()
+        self.entry.select_range(0, "end")
+
+    def _ok(self) -> None:
+        try:
+            self.result = self.validate(self.entry.get())
+        except (ValueError, KeyError) as exc:
+            self.error.configure(text=str(exc).strip("'\""))
+            return
         self.destroy()

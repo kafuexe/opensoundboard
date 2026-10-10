@@ -65,6 +65,12 @@ class AudioEngine:
         self.monitor_mixer.stop(PREVIEW_KEY)
         self.monitor_mixer.add(PREVIEW_KEY, data, 1.0)
 
+    def stop_preview(self) -> None:
+        self.monitor_mixer.stop(PREVIEW_KEY)
+
+    def previewing(self) -> bool:
+        return PREVIEW_KEY in self.monitor_mixer.active_keys()
+
     def stop(self, key: str) -> None:
         self.monitor_mixer.stop(key)
         self.mic_mixer.stop(key)

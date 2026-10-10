@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from soundboard import paths
@@ -75,6 +77,57 @@ def test_has_origin(wav_file):
     lib.add_file(wav_file(), origin="soundbuttonsworld", origin_id="abc.mp3")
     assert lib.has_origin("soundbuttonsworld", "abc.mp3")
     assert not lib.has_origin("soundbuttonsworld", "other.mp3")
+
+
+def test_folders_create_rename_delete(wav_file):
+    lib = Library.load()
+    memes = lib.add_folder("  Memes ")
+    assert memes == "Memes"
+    a = lib.add_file(wav_file("a.wav"), folder="Memes")
+    b = lib.add_file(wav_file("b.wav"))
+    assert [s.id for s in lib.search("", folder="Memes")] == [a.id]
+    assert [s.id for s in lib.search("", folder="")] == [b.id]
+    assert len(lib.search("", folder=None)) == 2
+
+    lib.rename_folder("Memes", "Funny")
+    assert Library.load().get(a.id).folder == "Funny"
+    assert Library.load().folders == ["Funny"]
+
+    assert lib.delete_folder("Funny") == 1
+    reloaded = Library.load()
+    assert reloaded.folders == [] and reloaded.get(a.id).folder == ""
+    assert reloaded.get(a.id).path.exists()  # deleting a folder keeps its sounds
+
+
+@pytest.mark.parametrize("name", ["", "   ", "memes", "All", "unsorted"])
+def test_folder_name_rules(name):
+    lib = Library.load()
+    lib.add_folder("Memes")
+    with pytest.raises(ValueError):
+        lib.add_folder(name)
+
+
+def test_move_to_folder_and_unknown_folder_falls_back(wav_file):
+    lib = Library.load()
+    lib.add_folder("Games")
+    s = lib.add_file(wav_file(), folder="Nope")
+    assert s.folder == ""
+    lib.update(s.id, folder="Games")
+    assert lib.get(s.id).folder == "Games"
+    lib.update(s.id, folder="Gone")
+    assert lib.get(s.id).folder == ""
+
+
+def test_loads_library_from_before_folders(wav_file):
+    lib = Library.load()
+    s = lib.add_file(wav_file())
+    raw = json.loads(paths.library_file().read_text())
+    del raw["folders"]
+    for item in raw["sounds"]:
+        del item["folder"]
+    paths.library_file().write_text(json.dumps(raw))
+    old = Library.load()
+    assert old.folders == [] and old.get(s.id).folder == ""
 
 
 def test_clean_name():
