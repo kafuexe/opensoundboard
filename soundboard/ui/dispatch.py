@@ -22,7 +22,8 @@ class Dispatcher:
             try:
                 result = work()
             except Exception as exc:
-                self.call(lambda: on_error(exc))
+                # Bind now: Python clears `exc` when the except block ends.
+                self.call(lambda error=exc: on_error(error))
             else:
                 self.call(lambda: on_done(result))
         threading.Thread(target=run, daemon=True).start()

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from ..sources.cancel import CancelToken, Cancelled
 from ..sources.soundbuttonsworld import Page, RemoteSound, SoundButtonsWorld
 from . import theme as t
 
@@ -19,6 +20,7 @@ class ResultRow(ctk.CTkFrame):
         super().__init__(master, fg_color=t.PANEL, corner_radius=8, height=48)
         self.view = view
         self.sound = sound
+        self.adding: CancelToken | None = None  # set while Add is downloading; the button cancels it
         self.grid_columnconfigure(1, weight=1)
 
         self.play = ctk.CTkButton(self, text="▶", width=34, height=30, corner_radius=6, fg_color=t.RAISED,
@@ -49,6 +51,7 @@ class BrowseView(ctk.CTkFrame):
         self.loaded_once = False
         self._request = 0  # ignore late responses from older searches
         self._preview_request = 0
+        self._preview_token: CancelToken | None = None
         self.preview_row: ResultRow | None = None  # the row whose button shows a stop square right now
 
         self.grid_columnconfigure(0, weight=1)
@@ -177,9 +180,10 @@ class BrowseView(ctk.CTkFrame):
         row.play.configure(text="…")
         self._preview_request += 1
         request = self._preview_request
+        token = self._preview_token = CancelToken()
 
         def work() -> Path:
-            path = self.client.download(row.sound, self.cache_dir)
+            path = self.client.download(row.sound, self.cache_dir, cancel=token)
             if request == self._preview_request:  # still the one they asked for
                 self.app.engine.preview(path)
             return path
@@ -191,11 +195,15 @@ class BrowseView(ctk.CTkFrame):
         def failed(exc: Exception) -> None:
             if request == self._preview_request:
                 self._reset_preview_row()
-            self.app.toast(f"Couldn't play “{row.sound.name}”: {exc}", error=True)
+            if not isinstance(exc, Cancelled):
+                self.app.toast(f"Couldn't play “{row.sound.name}”: {exc}", error=True)
 
         self.app.dispatch.run_in_background(work, done, failed)
 
     def _reset_preview_row(self) -> None:
+        if self._preview_token is not None:
+            self._preview_token.cancel()  # stops a preview that's still downloading
+            self._preview_token = None
         row, self.preview_row = self.preview_row, None
         self._preview_request += 1
         if row is not None and row.winfo_exists():
@@ -209,14 +217,25 @@ class BrowseView(ctk.CTkFrame):
             self._reset_preview_row()
 
     def add(self, row: ResultRow) -> None:
-        row.add.configure(text="Adding…", state="disabled")
-
+        """Add downloads the sound into the library; while it's downloading the button cancels."""
+        if row.adding is not None:
+            row.adding.cancel()
+            return
+        token = row.adding = CancelToken()
+        row.add.configure(text="Cancel", fg_color="transparent", text_color=t.DANGER, hover_color="#4A2A2A")
         folder = self.app.target_folder()
 
+        def reset_button() -> None:
+            row.adding = None
+            if row.winfo_exists():
+                row.add.configure(text="Add", state="normal", fg_color=t.RAISED, text_color=t.TEXT,
+                                  hover_color=t.RAISED_HOVER)
+
         def work() -> Path:
-            return self.client.download(row.sound, self.cache_dir)
+            return self.client.download(row.sound, self.cache_dir, cancel=token)
 
         def done(path: Path) -> None:
+            reset_button()
             try:
                 self.app.library.add_file(path, name=row.sound.name, origin="soundbuttonsworld",
                                          origin_id=row.sound.file_name, folder=folder)
@@ -229,8 +248,9 @@ class BrowseView(ctk.CTkFrame):
             self.app.toast(self.app.added_message(row.sound.name, folder))
 
         def failed(exc: Exception) -> None:
-            if row.winfo_exists():
-                row.add.configure(text="Add", state="normal")
+            reset_button()
+            if isinstance(exc, Cancelled):
+                return
             self.app.toast(f"Couldn't add “{row.sound.name}”: {exc}", error=True)
 
         self.app.dispatch.run_in_background(work, done, failed)

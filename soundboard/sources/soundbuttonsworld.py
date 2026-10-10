@@ -8,6 +8,8 @@ from pathlib import Path
 
 import requests
 
+from .cancel import CancelToken
+
 BASE = "https://soundbuttonsworld.com"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Soundboard/1.0"}
 TIMEOUT = 15
@@ -76,17 +78,25 @@ class SoundButtonsWorld:
     def newest(self, page: int = 1, page_size: int = 30) -> Page:
         return parse_page(self._get("memes/new", {"page": page, "pageSize": page_size}), page, page_size)
 
-    def download(self, sound: RemoteSound, dest_dir: Path | None = None) -> Path:
-        """Download to a temp (or given) folder and return the file path."""
+    def download(self, sound: RemoteSound, dest_dir: Path | None = None, cancel: CancelToken | None = None) -> Path:
+        """Download to a temp (or given) folder and return the file path. Raises Cancelled if cancelled."""
         dest_dir = Path(dest_dir or tempfile.mkdtemp(prefix="sbw-"))
         dest = dest_dir / sound.file_name
         if dest.exists() and dest.stat().st_size > 0:
             return dest
-        with self.session.get(sound.audio_url, timeout=TIMEOUT, stream=True) as resp:
-            resp.raise_for_status()
-            tmp = dest.with_suffix(dest.suffix + ".part")
-            with open(tmp, "wb") as fh:
-                for chunk in resp.iter_content(64 * 1024):
-                    fh.write(chunk)
+        tmp = dest.with_suffix(dest.suffix + ".part")
+        try:
+            with self.session.get(sound.audio_url, timeout=TIMEOUT, stream=True) as resp:
+                resp.raise_for_status()
+                with open(tmp, "wb") as fh:
+                    for chunk in resp.iter_content(16 * 1024):
+                        if cancel:
+                            cancel.check()
+                        fh.write(chunk)
+            if cancel:
+                cancel.check()
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         tmp.replace(dest)
         return dest

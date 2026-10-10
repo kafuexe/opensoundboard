@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from .cancel import CancelToken, Cancelled
+
 _TIME = re.compile(r"^\s*(?:(\d+):)?(?:(\d+):)?(\d+(?:\.\d+)?)\s*$")
 
 
@@ -42,10 +44,12 @@ def download_mp3(
     start: float | None = None,
     end: float | None = None,
     on_progress: Callable[[float, str], None] | None = None,
+    cancel: CancelToken | None = None,
 ) -> YouTubeResult:
-    """Download the audio of one video as MP3 into a temp folder. on_progress(fraction, message)."""
+    """Download the audio of one video as MP3 into a temp folder. on_progress(fraction, message).
+    Raises Cancelled if cancel is triggered (checked on every progress update)."""
     import yt_dlp
-    from yt_dlp.utils import download_range_func
+    from yt_dlp.utils import DownloadCancelled, download_range_func
 
     if not ffmpeg_path():
         raise RuntimeError("ffmpeg isn't installed. Install it (winget install ffmpeg) and restart the app.")
@@ -55,6 +59,8 @@ def download_mp3(
     out_dir = Path(tempfile.mkdtemp(prefix="yt-"))
 
     def hook(d: dict) -> None:
+        if cancel and cancel.cancelled:
+            raise DownloadCancelled("cancelled")
         if not on_progress:
             return
         if d.get("status") == "downloading":
@@ -72,14 +78,23 @@ def download_mp3(
         "no_warnings": True,
         "noprogress": True,
         "progress_hooks": [hook],
+        "postprocessor_hooks": [lambda _d: hook({})],  # lets cancel land between download and conversion
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
     }
     if start is not None or end is not None:
         opts["download_ranges"] = download_range_func(None, [(start or 0, end if end is not None else float("inf"))])
         opts["force_keyframes_at_cuts"] = True
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+        if cancel:
+            cancel.check()
+    except BaseException as exc:
+        shutil.rmtree(out_dir, ignore_errors=True)
+        if cancel and cancel.cancelled:
+            raise Cancelled() from exc
+        raise
     if info is None:
         raise RuntimeError("Couldn't read that link")
     if "entries" in info:  # a playlist link slipped through; take the first video
