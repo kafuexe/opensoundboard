@@ -17,6 +17,8 @@ Then double-click `run.bat`, or run `C:\projects\Soundboard\.venv\Scripts\soundb
 
 - **My sounds:** a grid of pads. Click to play, right-click (or ⋯) to rename, set a hotkey, change
   volume, or delete. The search box filters by name or key.
+- **Drag and drop:** drag audio files (or a folder of them) from Explorer onto the window, pick a
+  folder, and add them.
 - **Import audio files:** MP3, WAV, OGG, FLAC, M4A, Opus, AAC. Files are copied into
   `%APPDATA%\Soundboard\sounds`, so moving the originals doesn't break anything.
 - **Sound Buttons World:** search soundbuttonsworld.com or browse Trending and New. ▶ previews in

@@ -129,8 +129,8 @@ class LibraryView(ctk.CTkFrame):
 
         self.empty = ctk.CTkFrame(self.grid_area, fg_color="transparent")
         t.label(self.empty, "No sounds yet", size=22, weight="bold").pack(anchor="w")
-        t.label(self.empty, "Import audio files from your computer, or grab sounds from\n"
-                            "Sound Buttons World or a YouTube video.", color=t.MUTED, justify="left").pack(anchor="w", pady=(6, 14))
+        t.label(self.empty, "Drag audio files here, import them from your computer, or grab\n"
+                            "sounds from Sound Buttons World or a YouTube video.", color=t.MUTED, justify="left").pack(anchor="w", pady=(6, 14))
         row = ctk.CTkFrame(self.empty, fg_color="transparent")
         row.pack(anchor="w")
         t.button(row, "Import audio files", self.import_files, kind="primary").pack(side="left")
