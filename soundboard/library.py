@@ -11,6 +11,7 @@ from pathlib import Path
 from . import paths
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".flac", ".m4a", ".opus", ".aac", ".wma"}
+_RESERVED_NAMES = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
 
 
 @dataclass
@@ -47,6 +48,8 @@ class Library:
             for sound in lib.sounds:  # a folder missing from the list (hand-edited file) shouldn't hide sounds
                 if sound.folder and sound.folder not in lib.folders:
                     lib.folders.append(sound.folder)
+            if lib._name_files_after_sounds():
+                lib.save()
         return lib
 
     def save(self) -> None:
@@ -63,10 +66,10 @@ class Library:
         source = Path(source)
         if source.suffix.lower() not in AUDIO_EXTENSIONS:
             raise ValueError(f"{source.name} is not a supported audio file")
-        sound_id = uuid.uuid4().hex[:12]
-        stored = f"{sound_id}{source.suffix.lower()}"
+        name = clean_name(name or source.stem)
+        stored = self._free_file_name(name, source.suffix.lower())
         (shutil.move if move else shutil.copy2)(str(source), str(paths.sounds_dir() / stored))
-        sound = Sound(id=sound_id, name=clean_name(name or source.stem), file=stored, source=origin, origin_id=origin_id,
+        sound = Sound(id=uuid.uuid4().hex[:12], name=name, file=stored, source=origin, origin_id=origin_id,
                       folder=folder if folder in self.folders else "")
         self.sounds.append(sound)
         self.save()
@@ -95,6 +98,8 @@ class Library:
                     other.hotkey = ""
         for key, value in changes.items():
             setattr(sound, key, value)
+        if "name" in changes:
+            self._rename_file(sound)
         self.save()
         return sound
 
@@ -160,6 +165,49 @@ class Library:
 
     def has_origin(self, origin: str, origin_id: str) -> bool:
         return any(s.source == origin and s.origin_id == origin_id for s in self.sounds)
+
+    # --- file names ----------------------------------------------------------------------------
+    def _free_file_name(self, name: str, ext: str, current: str = "") -> str:
+        """"<name><ext>", or "<name> 1<ext>", "<name> 2<ext>"... when that's taken. `current` is the
+        sound's own file, which doesn't count as taken (renaming to the same name keeps it)."""
+        base = safe_file_stem(name)
+        taken = {s.file.lower() for s in self.sounds if s.file.lower() != current.lower()}
+        candidate, n = f"{base}{ext}", 0
+        while candidate.lower() in taken or (
+                candidate.lower() != current.lower() and (paths.sounds_dir() / candidate).exists()):
+            n += 1
+            candidate = f"{base} {n}{ext}"
+        return candidate
+
+    def _rename_file(self, sound: Sound) -> bool:
+        """Rename the sound's file to match its name. Keeps the old file name if the rename fails
+        (e.g. the file is open elsewhere). Returns whether the file name changed."""
+        wanted = self._free_file_name(sound.name, Path(sound.file).suffix.lower(), current=sound.file)
+        if wanted == sound.file:
+            return False
+        try:
+            sound.path.rename(paths.sounds_dir() / wanted)
+        except OSError:
+            return False
+        sound.file = wanted
+        return True
+
+    def _name_files_after_sounds(self) -> bool:
+        """Older versions stored files as "<id>.mp3"; give those their sound's name."""
+        changed = False
+        for sound in self.sounds:
+            if Path(sound.file).stem == sound.id and sound.path.exists():
+                changed |= self._rename_file(sound)
+        return changed
+
+
+def safe_file_stem(name: str) -> str:
+    """A Windows-safe file name (without extension) that still reads like the sound's name."""
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", name)
+    stem = re.sub(r"\s+", " ", stem).strip(" .")[:60].rstrip(" .")
+    if not stem or stem.lower() in _RESERVED_NAMES:
+        stem = f"{stem} sound".strip()
+    return stem
 
 
 def clean_name(name: str) -> str:

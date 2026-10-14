@@ -142,8 +142,11 @@ class SoundDialog(ctk.CTkToplevel):
             self.app.settings.stop_hotkey = ""
             self.app.settings.save()
         folder = self.folder.get()
-        self.app.library.update(self.sound_id, name=self.name.get(), hotkey=hotkey, volume=round(self.volume.get(), 2),
+        old_path = self.app.library.get(self.sound_id).path
+        sound = self.app.library.update(self.sound_id, name=self.name.get(), hotkey=hotkey, volume=round(self.volume.get(), 2),
                                 folder="" if folder == "Unsorted" else folder)
+        if sound.path != old_path:  # renaming renames the file too
+            self.app.engine.cache.forget(old_path)
         self.app.library_changed()
         self.destroy()
 

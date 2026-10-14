@@ -142,3 +142,40 @@ def test_settings_roundtrip_ignores_unknown_keys():
     paths.settings_file().write_text(raw)
     loaded = Settings.load()
     assert loaded.mic_volume == 0.3 and loaded.stop_hotkey == "f12"
+
+
+def test_files_are_named_after_sounds_with_numbers_for_duplicates(wav_file):
+    lib = Library.load()
+    files = [lib.add_file(wav_file("Vine_Boom.wav")).file for _ in range(3)]
+    assert files == ["Vine Boom.wav", "Vine Boom 1.wav", "Vine Boom 2.wav"]
+    assert all((paths.sounds_dir() / f).exists() for f in files)
+
+
+def test_unsafe_characters_are_dropped_from_file_names(wav_file):
+    sound = Library.load().add_file(wav_file(), name='what?? "no" <way>: a/b')
+    assert sound.name == 'what?? "no" <way>: a/b'
+    assert sound.file == "what no way ab.wav"
+
+
+def test_rename_renames_the_file(wav_file):
+    lib = Library.load()
+    a = lib.add_file(wav_file("a.wav"))
+    lib.add_file(wav_file("b.wav"))
+    lib.update(a.id, name="b")
+    assert a.file == "b 1.wav" and a.path.exists()
+    assert not (paths.sounds_dir() / "a.wav").exists()
+    lib.update(a.id, name="b", hotkey="f1")  # same name keeps the file
+    assert Library.load().get(a.id).file == "b 1.wav"
+
+
+def test_old_id_named_files_get_their_sound_name(wav_file):
+    lib = Library.load()
+    s = lib.add_file(wav_file("Bruh.wav"))
+    s.path.rename(paths.sounds_dir() / f"{s.id}.wav")
+    raw = json.loads(paths.library_file().read_text())
+    raw["sounds"][0]["file"] = f"{s.id}.wav"
+    paths.library_file().write_text(json.dumps(raw))
+
+    loaded = Library.load()
+    assert loaded.get(s.id).file == "Bruh.wav" and loaded.get(s.id).path.exists()
+    assert Library.load().get(s.id).file == "Bruh.wav"  # saved, not just renamed in memory
