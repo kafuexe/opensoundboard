@@ -38,6 +38,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 [Files]
 Source: "..\dist\Soundboard\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\apo\build\SoundboardApo.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\apo\build\SoundboardCapture.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Soundboard"; Filename: "{app}\Soundboard.exe"
