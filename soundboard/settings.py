@@ -22,6 +22,8 @@ class Settings:
     stop_hotkey: str = ""
     one_at_a_time: bool = True
     hotkeys_enabled: bool = True
+    minimize_to: str = "taskbar"  # taskbar | tray
+    close_to: str = "quit"  # quit | tray (keep running in the tray)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

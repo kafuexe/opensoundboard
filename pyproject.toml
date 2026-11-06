@@ -16,6 +16,8 @@ dependencies = [
     "yt-dlp[default]",  # [default] adds yt-dlp-ejs, needed for YouTube
     "requests>=2.31",
     "tkinterdnd2>=0.4",
+    "pystray>=0.19",
+    "pillow",
 ]
 
 [project.gui-scripts]

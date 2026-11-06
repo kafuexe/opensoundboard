@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from .app import App
 
 DEFAULT_DEVICE = "System default"
+MINIMIZE_LABELS = {"taskbar": "Keep it in the taskbar", "tray": "Hide it in the tray"}
+CLOSE_LABELS = {"quit": "Quit Soundboard", "tray": "Keep running in the tray"}
 NO_MIC = "Pick a microphone"
 MODE_LABELS = {MIC_MODE_PLUGIN: "Mic plugin", MIC_MODE_DEVICE: "Output device"}
 MODE_HELP = {
@@ -89,6 +91,16 @@ class SettingsView(ctk.CTkFrame):
             self.hotkeys_on.select()
         self.hotkeys_on.pack(anchor="w", padx=6)
 
+        self._section(body, "Window")
+        t.label(body, "When I minimize the window", color=t.MUTED, size=13).pack(anchor="w", padx=6)
+        self.minimize_to = self._choice(body, MINIMIZE_LABELS, s.minimize_to,
+                                        lambda v: self.app.update_settings(minimize_to=v))
+        t.label(body, "When I close the window", color=t.MUTED, size=13).pack(anchor="w", padx=6, pady=(12, 0))
+        self.close_to = self._choice(body, CLOSE_LABELS, s.close_to, lambda v: self.app.update_settings(close_to=v))
+        t.label(body, "In the tray, Soundboard keeps running and your hotkeys keep working. Click its tray "
+                      "icon to bring the window back, or right-click it to quit.",
+                color=t.MUTED, size=13, justify="left", wraplength=560).pack(anchor="w", padx=6, pady=(8, 0))
+
         self._section(body, "Playback")
         self.one_at_a_time = ctk.CTkCheckBox(body, text="Starting a sound stops the one already playing",
                                              font=t.font(14), text_color=t.TEXT, fg_color=t.TEXT,
@@ -103,6 +115,16 @@ class SettingsView(ctk.CTkFrame):
 
         self._refresh_mics()
         self._update_mode_ui()
+
+    def _choice(self, parent, labels: dict[str, str], current: str, on_change) -> ctk.CTkSegmentedButton:
+        """A row of options; on_change gets the chosen key."""
+        button = ctk.CTkSegmentedButton(parent, values=list(labels.values()), font=t.font(13), fg_color=t.PANEL,
+                                        selected_color=t.RAISED_HOVER, selected_hover_color=t.RAISED_HOVER,
+                                        unselected_color=t.PANEL, unselected_hover_color=t.RAISED, text_color=t.TEXT,
+                                        command=lambda label: on_change(next(k for k, v in labels.items() if v == label)))
+        button.set(labels.get(current, next(iter(labels.values()))))
+        button.pack(anchor="w", padx=6, pady=(4, 0))
+        return button
 
     def _section(self, parent, title: str) -> None:
         ctk.CTkFrame(parent, fg_color=t.LINE, height=1).pack(fill="x", padx=6, pady=(22, 14))

@@ -6,3 +6,5 @@ keyboard>=0.13
 yt-dlp[default]
 requests>=2.31
 tkinterdnd2>=0.4
+pystray>=0.19
+pillow

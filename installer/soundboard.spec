@@ -8,7 +8,7 @@ a = Analysis(
     [str(root / "installer" / "launch.py")],
     pathex=[str(root)],
     datas=[(str(root / "soundboard" / "assets"), "soundboard/assets")],
-    hiddenimports=["soundboard.micplugin.admin"],  # imported lazily for `--admin`
+    hiddenimports=["soundboard.micplugin.admin", "pystray._win32"],  # imported lazily
     excludes=["pytest"],
 )
 pyz = PYZ(a.pure)

@@ -16,6 +16,7 @@ from .browse_view import BrowseView
 from .dispatch import Dispatcher
 from .library_view import LibraryView
 from .settings_view import SettingsView
+from .tray import Tray
 from .youtube_view import YouTubeView
 
 ICON = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
@@ -83,7 +84,11 @@ class App(ctk.CTk, drop.WindowMixin):
 
         self.show("library")
         self.library_changed()
-        self.protocol("WM_DELETE_WINDOW", self._quit)
+        self.tray = Tray(ICON, self.dispatch.call, on_show=self.show_window, on_stop_all=self.engine.stop_all,
+                         on_quit=self._quit)
+        self._told_about_tray = False
+        self.protocol("WM_DELETE_WINDOW", self._close_clicked)
+        self.bind("<Unmap>", self._on_unmap)
         self.after(80, self._tick)
 
     # --- layout ----------------------------------------------------------------------------
@@ -247,7 +252,34 @@ class App(ctk.CTk, drop.WindowMixin):
         self.monitor_status.configure(text=status["monitor"])
         self.after(80, self._tick)
 
+    # --- window and tray --------------------------------------------------------------------
+    def _on_unmap(self, event) -> None:
+        if event.widget is self and self.state() == "iconic" and self.settings.minimize_to == "tray":
+            self.after_idle(self.hide_to_tray)
+
+    def _close_clicked(self) -> None:
+        if self.settings.close_to == "tray":
+            self.hide_to_tray()
+        else:
+            self._quit()
+
+    def hide_to_tray(self) -> None:
+        """Hide the window; hotkeys keep working and the tray icon brings it back."""
+        self.withdraw()
+        self.tray.show()
+        if not self._told_about_tray:
+            self._told_about_tray = True
+            self.tray.notify("Soundboard is still running", "Your hotkeys still work. Click the tray icon to open it.")
+
+    def show_window(self) -> None:
+        self.tray.hide()
+        self.deiconify()
+        self.state("normal")
+        self.lift()
+        self.focus_force()
+
     def _quit(self) -> None:
+        self.tray.stop()
         self.hotkeys.clear()
         self.engine.shutdown()
         self.destroy()
