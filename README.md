@@ -29,11 +29,21 @@ Then double-click `run.bat`, or run `C:\projects\Soundboard\.venv\Scripts\soundb
   `%APPDATA%\Soundboard\sounds`, so moving the originals doesn't break anything.
 - **Sound Buttons World:** search soundbuttonsworld.com or browse Trending and New. ▶ previews in
   your headphones only; **Add** downloads the sound into your library.
-- **YouTube:** paste a link, optionally set start and end times (`83`, `1:23`, `0:01:23.5`), and
-  it's downloaded as an MP3 and added.
-- **Global hotkeys:** a key per sound, plus a Stop all key, working while a game or Discord is
-  focused. Games running as administrator only see them if the app also runs as administrator.
+- **YouTube:** paste a link or search by typing words, optionally set start and end times (`83`,
+  `1:23`, `0:01:23.5`), and it's downloaded as an MP3 and added.
+- **Spotify:** paste a song, album or playlist link. Spotify doesn't allow downloads, so each song is
+  found on YouTube by title, artist and length (skipping live versions, covers and loops) and added
+  from there. Searching Spotify itself needs a Spotify developer key, so it isn't built in.
+- **Stream an app:** send everything another app plays (Spotify, a browser tab, a game) into your
+  mic, with its own volume. Needs Windows 10 version 2004 or newer.
+- **Global hotkeys:** a key per sound, a Stop all key, and per folder a key that plays one of its
+  sounds at random (right-click the folder tab). They work while a game or Discord is focused.
+  Games running as administrator only see them if the app also runs as administrator.
 - **Two faders:** *Into my mic* and *In my headphones*.
+- **Tray:** Settings > Window can hide the window in the tray when you minimize or close it.
+- **Themes:** Settings > Theme imports a shadcn/ui theme CSS file, the format
+  [tweakcn.com](https://tweakcn.com) exports, in light or dark. The built-in colors are
+  `soundboard/themes/soundboard.css`, a good starting point to edit.
 
 ## Where the mic audio goes
 
@@ -70,10 +80,13 @@ soundboard/
   audio/engine.py                     one play() feeds headphones and mic
   micplugin/                          which mics have the plugin; `--admin` install/add/uninstall
   sources/soundbuttonsworld.py        site search/trending/new + download
-  sources/youtube.py                  yt-dlp + ffmpeg to MP3, with trimming
+  sources/youtube.py                  yt-dlp + ffmpeg to MP3, with trimming; YouTube search
+  sources/spotify.py                  Spotify links -> matching YouTube uploads
+  audio/app_stream.py                 another app's audio into the mic (SoundboardCapture.exe)
+  themes/, ui/themes.py               built-in theme CSS and the shadcn/tweakcn CSS reader
   ui/                                 customtkinter views
 tests/                                pytest (no window or audio device needed)
-apo/                                  the mic plugin DLL (C++) and its native tests
+apo/                                  the mic plugin DLL and the app-capture helper (C++), native tests
 installer/                            PyInstaller spec, Inno Setup script, build.ps1
 ```
 
