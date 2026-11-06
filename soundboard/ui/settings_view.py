@@ -250,11 +250,14 @@ class SettingsView(ctk.CTkFrame):
         self.app.update_settings(monitor_device="" if name == DEFAULT_DEVICE else name)
 
     def _stop_key_changed(self, combo: str) -> None:
-        if combo:
+        owner = self.app.library.hotkey_owner(combo) if combo else ""
+        if owner:
             for sound in self.app.library.sounds:
                 if sound.hotkey == combo:
                     self.app.library.update(sound.id, hotkey="")
-                    self.app.toast(f"Moved {t.format_hotkey(combo)} from “{sound.name}” to Stop all")
+            for folder in [f for f, k in self.app.library.folder_hotkeys.items() if k == combo]:
+                self.app.library.set_folder_hotkey(folder, "")
+            self.app.toast(f"Moved {t.format_hotkey(combo)} from {owner} to Stop all")
         self.app.update_settings(stop_hotkey=combo)
         self.app.library_changed()
 

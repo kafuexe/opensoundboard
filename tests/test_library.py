@@ -179,3 +179,47 @@ def test_old_id_named_files_get_their_sound_name(wav_file):
     loaded = Library.load()
     assert loaded.get(s.id).file == "Bruh.wav" and loaded.get(s.id).path.exists()
     assert Library.load().get(s.id).file == "Bruh.wav"  # saved, not just renamed in memory
+
+
+def test_folder_random_key_plays_from_that_folder_without_repeats(wav_file):
+    lib = Library.load()
+    lib.add_folder("Memes")
+    a = lib.add_file(wav_file("a.wav"), folder="Memes")
+    b = lib.add_file(wav_file("b.wav"), folder="Memes")
+    lib.add_file(wav_file("c.wav"))  # unsorted: never picked
+    picks, last = [], None
+    for _ in range(40):
+        last = lib.random_sound("Memes", avoid=last).id
+        picks.append(last)
+    assert set(picks) == {a.id, b.id}
+    assert all(x != y for x, y in zip(picks, picks[1:]))  # never twice in a row
+    assert lib.random_sound("Memes", avoid=a.id) is b
+
+
+def test_random_from_a_one_sound_or_empty_folder(wav_file):
+    lib = Library.load()
+    lib.add_folder("Solo")
+    lib.add_folder("Empty")
+    only = lib.add_file(wav_file(), folder="Solo")
+    assert lib.random_sound("Solo", avoid=only.id) is only  # the only one is allowed to repeat
+    assert lib.random_sound("Empty") is None
+
+
+def test_folder_keys_persist_follow_renames_and_have_one_owner(wav_file):
+    lib = Library.load()
+    lib.add_folder("Memes")
+    s = lib.add_file(wav_file(), name="Bruh")
+    lib.update(s.id, hotkey="f5")
+    lib.set_folder_hotkey("Memes", "f5")  # taking a sound's key clears it there
+    assert lib.get(s.id).hotkey == "" and lib.folder_hotkeys == {"Memes": "f5"}
+    assert lib.hotkey_owner("f5") == "the “Memes” folder"
+
+    lib.rename_folder("Memes", "Funny")
+    assert Library.load().folder_hotkeys == {"Funny": "f5"}
+
+    lib.update(s.id, hotkey="f5")  # and a sound taking it back clears the folder's
+    assert lib.folder_hotkeys == {} and lib.hotkey_owner("f5") == "“Bruh”"
+
+    lib.set_folder_hotkey("Funny", "f6")
+    lib.delete_folder("Funny")
+    assert Library.load().folder_hotkeys == {}

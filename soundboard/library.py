@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 import shutil
 import uuid
@@ -34,6 +35,7 @@ class Sound:
 class Library:
     sounds: list[Sound] = field(default_factory=list)
     folders: list[str] = field(default_factory=list)  # display order
+    folder_hotkeys: dict[str, str] = field(default_factory=dict)  # folder -> key that plays a random sound from it
     index_path: Path = field(default_factory=paths.library_file)
 
     @classmethod
@@ -48,13 +50,15 @@ class Library:
             for sound in lib.sounds:  # a folder missing from the list (hand-edited file) shouldn't hide sounds
                 if sound.folder and sound.folder not in lib.folders:
                     lib.folders.append(sound.folder)
+            lib.folder_hotkeys = {f: k for f, k in raw.get("folder_hotkeys", {}).items() if f in lib.folders and k}
             if lib._name_files_after_sounds():
                 lib.save()
         return lib
 
     def save(self) -> None:
         tmp = self.index_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"folders": self.folders, "sounds": [asdict(s) for s in self.sounds]}, indent=2), encoding="utf-8")
+        data = {"folders": self.folders, "folder_hotkeys": self.folder_hotkeys, "sounds": [asdict(s) for s in self.sounds]}
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
         tmp.replace(self.index_path)
 
     def get(self, sound_id: str) -> Sound | None:
@@ -92,10 +96,8 @@ class Library:
         if "folder" in changes and changes["folder"] not in self.folders:
             changes["folder"] = ""
         if changes.get("hotkey"):
-            # A hotkey belongs to one sound only; taking it clears the previous owner.
-            for other in self.sounds:
-                if other is not sound and other.hotkey == changes["hotkey"]:
-                    other.hotkey = ""
+            # A hotkey belongs to one sound (or folder) only; taking it clears the previous owner.
+            self._release_hotkey(changes["hotkey"], keep=sound)
         for key, value in changes.items():
             setattr(sound, key, value)
         if "name" in changes:
@@ -136,6 +138,8 @@ class Library:
         for sound in self.sounds:
             if sound.folder == old:
                 sound.folder = new
+        if old in self.folder_hotkeys:
+            self.folder_hotkeys[new] = self.folder_hotkeys.pop(old)
         self.save()
         return new
 
@@ -144,6 +148,7 @@ class Library:
         if name not in self.folders:
             return 0
         self.folders.remove(name)
+        self.folder_hotkeys.pop(name, None)
         moved = 0
         for sound in self.sounds:
             if sound.folder == name:
@@ -151,6 +156,39 @@ class Library:
                 moved += 1
         self.save()
         return moved
+
+    def set_folder_hotkey(self, folder: str, hotkey: str) -> None:
+        """The key that plays a random sound from this folder ("" removes it)."""
+        if folder not in self.folders:
+            raise KeyError(folder)
+        if hotkey:
+            self._release_hotkey(hotkey)
+            self.folder_hotkeys[folder] = hotkey
+        else:
+            self.folder_hotkeys.pop(folder, None)
+        self.save()
+
+    def random_sound(self, folder: str, avoid: str | None = None) -> Sound | None:
+        """A random sound from the folder, not `avoid` (the last one picked) unless it's the only one."""
+        pool = [s for s in self.sounds if s.folder == folder]
+        if len(pool) > 1:
+            pool = [s for s in pool if s.id != avoid]
+        return random.choice(pool) if pool else None
+
+    def hotkey_owner(self, hotkey: str) -> str:
+        """Who has this key, for "Saving moves it here" hints: a sound's name, "the X folder", or ""."""
+        sound = next((s for s in self.sounds if s.hotkey == hotkey), None)
+        if sound:
+            return f"“{sound.name}”"
+        folder = next((f for f, k in self.folder_hotkeys.items() if k == hotkey), None)
+        return f"the “{folder}” folder" if folder else ""
+
+    def _release_hotkey(self, hotkey: str, keep: Sound | None = None) -> None:
+        for other in self.sounds:
+            if other is not keep and other.hotkey == hotkey:
+                other.hotkey = ""
+        for folder in [f for f, k in self.folder_hotkeys.items() if k == hotkey]:
+            del self.folder_hotkeys[folder]
 
     def folder_count(self, folder: str | None) -> int:
         return len(self.sounds) if folder is None else sum(1 for s in self.sounds if s.folder == folder)

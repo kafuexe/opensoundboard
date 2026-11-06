@@ -129,10 +129,13 @@ class SoundDialog(ctk.CTkToplevel):
 
     def _check_conflict(self, combo: str) -> None:
         other = next((s for s in self.app.library.sounds if combo and s.hotkey == combo and s.id != self.sound_id), None)
+        folder = next((f for f, k in self.app.library.folder_hotkeys.items() if combo and k == combo), None)
         if combo and combo == self.app.settings.stop_hotkey:
             self.conflict.configure(text="That's your Stop all key. Saving moves it to this sound.", text_color=t.AMBER)
         elif other:
             self.conflict.configure(text=f"“{other.name}” uses this key. Saving moves it here.", text_color=t.AMBER)
+        elif folder:
+            self.conflict.configure(text=f"The “{folder}” folder's random key. Saving moves it here.", text_color=t.AMBER)
         else:
             self.conflict.configure(text="")
 
@@ -160,6 +163,42 @@ class SoundDialog(ctk.CTkToplevel):
         if confirm.confirmed:
             self.app.remove_sound(self.sound_id)
             self.destroy()
+
+
+class FolderHotkeyDialog(ctk.CTkToplevel):
+    """Pick the key that plays a random sound from one folder. Changes apply right away."""
+
+    def __init__(self, app: "App", folder: str):
+        super().__init__(app)
+        self.app = app
+        self.folder = folder
+        self.title("Random sound key")
+        self.configure(fg_color=t.CONSOLE)
+        self.resizable(False, False)
+        self.transient(app)
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.pack(padx=24, pady=20)
+        t.label(body, f"Random sound from “{folder}”", size=17, weight="bold").pack(anchor="w")
+        t.label(body, "Press this key anywhere, even in a game, to play one of this folder's sounds\n"
+                      "at random. It never picks the same sound twice in a row.",
+                color=t.MUTED, justify="left").pack(anchor="w", pady=(4, 14))
+        self.field = HotkeyField(body, app, app.library.folder_hotkeys.get(folder, ""), on_change=self._changed)
+        self.field.pack(anchor="w")
+        self.note = t.label(body, "", color=t.MUTED, size=12)
+        self.note.pack(anchor="w", pady=(6, 12))
+        t.button(body, "Done", self.destroy, kind="primary", width=90).pack(anchor="e")
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.after(100, lambda: (self.lift(), self.grab_set()))
+
+    def _changed(self, combo: str) -> None:
+        owner = self.app.library.hotkey_owner(combo) if combo else ""
+        if combo and combo == self.app.settings.stop_hotkey:
+            owner = "Stop all"
+        if owner == f"the “{self.folder}” folder":
+            owner = ""
+        self.app.set_folder_hotkey(self.folder, combo)
+        self.note.configure(text=f"Moved {t.format_hotkey(combo)} here from {owner}." if owner else "",
+                            text_color=t.AMBER)
 
 
 class ConfirmDialog(ctk.CTkToplevel):

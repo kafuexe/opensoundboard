@@ -78,6 +78,7 @@ class App(ctk.CTk, drop.WindowMixin):
         self._build_on_air_bar()
         self._toast = None
         self._current = ""
+        self._last_random: dict[str, str] = {}  # folder -> sound id last picked at random
         # Every big area is a drop target; Windows delivers a drop to the nearest registered ancestor.
         drop.enable(self, [self, self.content, self.sidebar, self.bar, *self.views.values(),
                            self.views["library"].grid_area])
@@ -211,8 +212,25 @@ class App(ctk.CTk, drop.WindowMixin):
             self._bind_hotkeys()
         self._refresh_stop_label()
 
+    def play_random(self, folder: str) -> None:
+        """Play a random sound from a folder (never the same one twice in a row)."""
+        sound = self.library.random_sound(folder, avoid=self._last_random.get(folder))
+        if sound is None:
+            self.dispatch.call(lambda: self.toast(f"“{folder}” has no sounds yet", error=True))
+            return
+        self._last_random[folder] = sound.id
+        self.play_sound(sound.id)
+
+    def set_folder_hotkey(self, folder: str, hotkey: str) -> None:
+        if hotkey and hotkey == self.settings.stop_hotkey:
+            self.update_settings(stop_hotkey="")  # one key, one job
+        self.library.set_folder_hotkey(folder, hotkey)
+        self.library_changed()
+
     def _bind_hotkeys(self) -> None:
         bindings = {s.hotkey: (lambda sid=s.id: self.play_sound(sid)) for s in self.library.sounds if s.hotkey}
+        for folder, hotkey in self.library.folder_hotkeys.items():
+            bindings[hotkey] = lambda f=folder: self.play_random(f)
         if self.settings.stop_hotkey:
             bindings[self.settings.stop_hotkey] = self.engine.stop_all
         failed = self.hotkeys.set_bindings(bindings)
@@ -288,4 +306,8 @@ class App(ctk.CTk, drop.WindowMixin):
 def main() -> None:
     # Our own taskbar identity, so Windows shows our icon rather than grouping us under Python's.
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Soundboard.App")
-    App().mainloop()
+    app = App()
+    try:
+        app.mainloop()
+    finally:
+        app.tray.stop()  # its thread would otherwise keep the process alive after a crash

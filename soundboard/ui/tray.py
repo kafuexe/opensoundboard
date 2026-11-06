@@ -29,17 +29,24 @@ class Tray:
         self._icon.run_detached(setup=lambda icon: None)
 
     def show(self) -> None:
-        self._icon.visible = True
+        if self._icon:
+            self._icon.visible = True
 
     def notify(self, title: str, message: str) -> None:
         try:
-            self._icon.notify(message, title)
+            if self._icon:
+                self._icon.notify(message, title)
         except Exception:
             pass  # notifications are a nicety; some Windows setups turn them off
 
     def hide(self) -> None:
-        self._icon.visible = False
+        if self._icon:
+            self._icon.visible = False
 
     def stop(self) -> None:
-        self._icon.visible = False
-        self._icon.stop()
+        """Remove the icon and end its thread. Safe to call more than once."""
+        if self._icon is None:
+            return
+        icon, self._icon = self._icon, None
+        icon.visible = False
+        icon.stop()

@@ -10,7 +10,7 @@ import customtkinter as ctk
 
 from ..library import AUDIO_EXTENSIONS, Sound
 from . import theme as t
-from .sound_dialog import ConfirmDialog, SoundDialog, TextPromptDialog
+from .sound_dialog import ConfirmDialog, FolderHotkeyDialog, SoundDialog, TextPromptDialog
 
 if TYPE_CHECKING:
     from .app import App
@@ -83,8 +83,10 @@ class FolderTabs(ctk.CTkFrame):
         for folder, text in tabs:
             selected = folder == self.view.folder
             count = lib.folder_count(folder)
+            key = lib.folder_hotkeys.get(folder) if folder else None
+            label = f"{text}  {count}" + (f"  · {t.format_hotkey(key)}" if key else "")  # its random-sound key
             btn = ctk.CTkButton(
-                self, text=f"{text}  {count}", height=30, width=0, corner_radius=8, font=t.font(13),
+                self, text=label, height=30, width=0, corner_radius=8, font=t.font(13),
                 fg_color=t.RAISED_HOVER if selected else "transparent", hover_color=t.RAISED,
                 text_color=t.TEXT if selected else t.MUTED, command=lambda f=folder: self.view.select_folder(f),
             )
@@ -233,6 +235,11 @@ class LibraryView(ctk.CTkFrame):
 
     def open_folder_menu(self, folder: str, event) -> None:
         menu = t.menu(self)
+        menu.add_command(label="Play a random sound", command=lambda: self.app.play_random(folder))
+        key = self.app.library.folder_hotkeys.get(folder)
+        menu.add_command(label=f"Random sound key ({t.format_hotkey(key)})…" if key else "Set a random sound key…",
+                         command=lambda: FolderHotkeyDialog(self.app, folder))
+        menu.add_separator()
         menu.add_command(label="Rename…", command=lambda: self.rename_folder(folder))
         menu.add_command(label="Delete folder…", command=lambda: self.delete_folder(folder))
         menu.tk_popup(event.x_root, event.y_root)
