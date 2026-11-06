@@ -87,6 +87,10 @@ def download_mp3(
     deno = tools.find("deno")  # YouTube needs a JavaScript runtime; the installer ships deno
     if deno:
         opts["js_runtimes"] = {"deno": {"path": deno}}
+    # yt-dlp's check for trimmed downloads ignores ffmpeg_location and only looks on PATH, unless this
+    # is set (its own command line does the same). A context variable, so set in this thread.
+    from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
+    FFmpegPostProcessor._ffmpeg_location.set(opts["ffmpeg_location"])
     if start is not None or end is not None:
         opts["download_ranges"] = download_range_func(None, [(start or 0, end if end is not None else float("inf"))])
         opts["force_keyframes_at_cuts"] = True

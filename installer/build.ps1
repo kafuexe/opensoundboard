@@ -43,10 +43,12 @@ function Get-Verified([string]$url, [string]$name, [string]$expectedHash) {
 function Get-PublishedHash([string]$url, [string]$name) {
     $text = (Invoke-WebRequest $url -UseBasicParsing).Content
     if ($text -is [byte[]]) { $text = [Text.Encoding]::UTF8.GetString($text) }
+    # A file with one hash is that file's (deno uses Get-FileHash's multi-line layout);
+    # a list (ffmpeg's checksums.sha256) has "<hash>  <name>" per line.
+    $hashes = [regex]::Matches($text, '\b[0-9a-fA-F]{64}\b')
+    if ($hashes.Count -eq 1) { return $hashes[0].Value }
     foreach ($line in $text -split "`n") {
-        if ($line -match '([0-9a-fA-F]{64})' -and ($line -match [regex]::Escape($name) -or $text.Trim() -notmatch "`n")) {
-            return $Matches[1]
-        }
+        if ($line.Contains($name) -and $line -match '\b([0-9a-fA-F]{64})\b') { return $Matches[1] }
     }
     throw "No checksum for $name in $url"
 }
