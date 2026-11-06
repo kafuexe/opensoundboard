@@ -36,6 +36,32 @@ class YouTubeResult:
     title: str
 
 
+@dataclass(frozen=True)
+class SearchHit:
+    id: str
+    title: str
+    channel: str
+    seconds: float | None
+
+    @property
+    def url(self) -> str:
+        return f"https://www.youtube.com/watch?v={self.id}"
+
+
+def search(query: str, count: int = 12) -> list[SearchHit]:
+    """YouTube search through yt-dlp (no account or API key)."""
+    import yt_dlp
+
+    query = query.strip()
+    if not query:
+        return []
+    opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist", "skip_download": True}
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(f"ytsearch{count}:{query}", download=False)
+    return [SearchHit(e["id"], e.get("title") or "", e.get("channel") or e.get("uploader") or "", e.get("duration"))
+            for e in (info or {}).get("entries") or [] if e and e.get("id") and e.get("ie_key", "Youtube") == "Youtube"]
+
+
 def ffmpeg_path() -> str | None:
     return tools.find("ffmpeg")
 
