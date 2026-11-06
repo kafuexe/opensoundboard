@@ -26,6 +26,7 @@ class Settings:
     close_to: str = "quit"  # quit | tray (keep running in the tray)
     theme: str = "soundboard"  # a CSS file in soundboard/themes or %APPDATA%/Soundboard/themes
     theme_mode: str = "dark"  # dark | light
+    stream_volume: float = 0.6  # another app streamed into the mic (Stream an app)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

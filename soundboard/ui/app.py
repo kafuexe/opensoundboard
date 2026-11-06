@@ -17,13 +17,14 @@ from .dispatch import Dispatcher
 from .library_view import LibraryView
 from .settings_view import SettingsView
 from .spotify_view import SpotifyView
+from .stream_view import StreamView
 from .tray import Tray
 from .youtube_view import YouTubeView
 
 ICON = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
 
 NAV = [("library", "My sounds"), ("browse", "Sound Buttons World"), ("youtube", "YouTube"), ("spotify", "Spotify"),
-       ("settings", "Settings")]
+       ("stream", "Stream an app"), ("settings", "Settings")]
 
 
 class Fader(ctk.CTkFrame):
@@ -77,6 +78,7 @@ class App(ctk.CTk, drop.WindowMixin):
             "browse": BrowseView(self.content, self),
             "youtube": YouTubeView(self.content, self),
             "spotify": SpotifyView(self.content, self),
+            "stream": StreamView(self.content, self),
             "settings": SettingsView(self.content, self),
         }
         self._build_on_air_bar()
@@ -260,6 +262,10 @@ class App(ctk.CTk, drop.WindowMixin):
             self.now_playing.configure(text=" + ".join(names) or "Playing", text_color=t.TEXT)
             self.bar_progress.grid()
             self.bar_progress.set((first and self.engine.progress(first.id)) or 0)
+        elif self.engine.app_stream.app is not None:
+            self.lamp.configure(fg_color=t.AMBER, text_color=t.AMBER_INK)
+            self.now_playing.configure(text=f"Streaming {self.engine.app_stream.app.name} into your mic", text_color=t.TEXT)
+            self.bar_progress.grid_remove()
         else:
             self.lamp.configure(fg_color=t.RAISED, text_color=t.MUTED)
             self.now_playing.configure(text="Nothing playing", text_color=t.MUTED)

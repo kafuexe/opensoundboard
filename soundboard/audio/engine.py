@@ -8,6 +8,7 @@ from ..micplugin.mics import default_mic_id, list_microphones
 from ..settings import MIC_MODE_DEVICE, Settings
 from .decode import DecodeCache
 from .mixer import Mixer
+from .app_stream import AppStream
 from .outputs import DeviceOutput, PluginMicOutput
 
 PREVIEW_KEY = "__preview__"
@@ -21,6 +22,7 @@ class AudioEngine:
         self.monitor = DeviceOutput(self.monitor_mixer)
         self.mic_device = DeviceOutput(self.mic_mixer)
         self.mic_plugin = PluginMicOutput(self.mic_mixer)
+        self.app_stream = AppStream(self.mic_mixer, settings.stream_volume)
         self.one_at_a_time = settings.one_at_a_time
         self._mic_mode = ""
         self._lock = threading.Lock()
@@ -112,6 +114,7 @@ class AudioEngine:
         return {"monitor": self.monitor.error, "mic": mic}
 
     def shutdown(self) -> None:
+        self.app_stream.stop()
         self.monitor.close()
         self.mic_device.close()
         self.mic_plugin.close()

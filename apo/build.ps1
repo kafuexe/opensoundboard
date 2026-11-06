@@ -13,6 +13,7 @@ $flags = '/nologo /std:c++20 /O2 /MT /W4 /WX /EHsc /permissive- /DUNICODE /D_UNI
 $script = @"
 @call "$vs\VC\Auxiliary\Build\vcvars64.bat" >nul 2>nul || exit /b 1
 cl $flags /LD "$here\src\apo.cpp" /Fe:SoundboardApo.dll /link /DEF:"$here\SoundboardApo.def" audiobaseprocessingobject.lib audiomediatypecrt.lib ole32.lib advapi32.lib /NODEFAULTLIB:atls.lib || exit /b 1
+cl $flags "$here\src\capture.cpp" /Fe:SoundboardCapture.exe /link ole32.lib mmdevapi.lib version.lib || exit /b 1
 cl $flags "$here\tests\ring_test.cpp" /Fe:ring_test.exe || exit /b 1
 cl $flags "$here\tests\com_test.cpp" /Fe:com_test.exe /link audiobaseprocessingobject.lib audiomediatypecrt.lib ole32.lib advapi32.lib /NODEFAULTLIB:atls.lib || exit /b 1
 "@

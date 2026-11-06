@@ -344,7 +344,7 @@ class PluginMicOutput:
         rate = ring.rate()
         if self._resampler is None or self._resampler.dst_rate != rate:
             self._resampler = StreamResampler(ENGINE_RATE, rate)
-        if not self.mixer.active_keys():
+        if not self.mixer.has_audio():
             return
         need = rate // 50 - ring.fill()
         if need > 0:
