@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+dist/
+installer/build/
+tools/icon-preview.png

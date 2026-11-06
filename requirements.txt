@@ -3,6 +3,6 @@ sounddevice>=0.5
 soundfile>=0.12
 numpy>=2.0
 keyboard>=0.13
-yt-dlp
+yt-dlp[default]
 requests>=2.31
 tkinterdnd2>=0.4

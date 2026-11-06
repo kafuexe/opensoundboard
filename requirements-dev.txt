@@ -1,1 +1,3 @@
 pytest>=8
+pillow  # tools/make_icon.py
+pyinstaller  # installer/build.ps1

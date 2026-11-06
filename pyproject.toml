@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "soundboard"
 version = "0.1.0"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
     "customtkinter>=5.2",
@@ -12,13 +13,16 @@ dependencies = [
     "soundfile>=0.12",
     "numpy>=2.0",
     "keyboard>=0.13",
-    "yt-dlp",
+    "yt-dlp[default]",  # [default] adds yt-dlp-ejs, needed for YouTube
     "requests>=2.31",
     "tkinterdnd2>=0.4",
 ]
 
 [project.gui-scripts]
-soundboard = "soundboard.ui.app:main"
+soundboard = "soundboard.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["soundboard*"]
+
+[tool.setuptools.package-data]
+soundboard = ["assets/*"]

@@ -17,6 +17,7 @@ class Settings:
     monitor_volume: float = 0.6
     mic_mode: str = MIC_MODE_PLUGIN
     mic_device: str = ""  # used when mic_mode == device
+    plugin_mic: str = ""  # endpoint id of the mic sounds go into when mic_mode == plugin; "" = Windows default
     mic_volume: float = 0.8
     stop_hotkey: str = ""
     one_at_a_time: bool = True

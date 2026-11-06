@@ -1,6 +1,9 @@
 """Main window: sidebar (navigation + the two volume faders), content, and the on-air bar."""
 from __future__ import annotations
 
+import ctypes
+from pathlib import Path
+
 import customtkinter as ctk
 
 from ..audio.engine import AudioEngine
@@ -14,6 +17,8 @@ from .dispatch import Dispatcher
 from .library_view import LibraryView
 from .settings_view import SettingsView
 from .youtube_view import YouTubeView
+
+ICON = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
 
 NAV = [("library", "My sounds"), ("browse", "Sound Buttons World"), ("youtube", "YouTube"), ("settings", "Settings")]
 
@@ -44,6 +49,7 @@ class App(ctk.CTk, drop.WindowMixin):
         t.setup()
         super().__init__()
         self.title("Soundboard")
+        self.iconbitmap(str(ICON))  # also stops customtkinter swapping in its own icon
         self.geometry("1080x700")
         self.minsize(820, 520)
         self.configure(fg_color=t.CONSOLE)
@@ -233,7 +239,7 @@ class App(ctk.CTk, drop.WindowMixin):
 
         status = self.engine.status()
         if status["mic"]:
-            waiting = status["mic"].startswith("connecting")
+            waiting = status["mic"].startswith(("connecting", "waiting"))
             text = status["mic"][0].upper() + status["mic"][1:]
             self.mic_status.configure(text=text, text_color=t.MUTED if waiting else t.DANGER)
         else:
@@ -248,4 +254,6 @@ class App(ctk.CTk, drop.WindowMixin):
 
 
 def main() -> None:
+    # Our own taskbar identity, so Windows shows our icon rather than grouping us under Python's.
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Soundboard.App")
     App().mainloop()

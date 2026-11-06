@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from .. import tools
 from .cancel import CancelToken, Cancelled
 
 _TIME = re.compile(r"^\s*(?:(\d+):)?(?:(\d+):)?(\d+(?:\.\d+)?)\s*$")
@@ -36,7 +37,7 @@ class YouTubeResult:
 
 
 def ffmpeg_path() -> str | None:
-    return shutil.which("ffmpeg")
+    return tools.find("ffmpeg")
 
 
 def download_mp3(
@@ -52,7 +53,8 @@ def download_mp3(
     from yt_dlp.utils import DownloadCancelled, download_range_func
 
     if not ffmpeg_path():
-        raise RuntimeError("ffmpeg isn't installed. Install it (winget install ffmpeg) and restart the app.")
+        raise RuntimeError("ffmpeg is missing. Reinstall Soundboard, or from source run installer\\build.ps1 "
+                           "(or winget install ffmpeg).")
     if start is not None and end is not None and end <= start:
         raise ValueError("The end time has to be after the start time")
 
@@ -80,7 +82,11 @@ def download_mp3(
         "progress_hooks": [hook],
         "postprocessor_hooks": [lambda _d: hook({})],  # lets cancel land between download and conversion
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
+        "ffmpeg_location": str(Path(ffmpeg_path()).parent),  # ffmpeg and ffprobe live together
     }
+    deno = tools.find("deno")  # YouTube needs a JavaScript runtime; the installer ships deno
+    if deno:
+        opts["js_runtimes"] = {"deno": {"path": deno}}
     if start is not None or end is not None:
         opts["download_ranges"] = download_range_func(None, [(start or 0, end if end is not None else float("inf"))])
         opts["force_keyframes_at_cuts"] = True

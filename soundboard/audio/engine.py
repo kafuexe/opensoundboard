@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
+from ..micplugin.mics import default_mic_id, list_microphones
 from ..settings import MIC_MODE_DEVICE, Settings
 from .decode import DecodeCache
 from .mixer import Mixer
@@ -38,9 +39,21 @@ class AudioEngine:
                 self.mic_device.open(settings.mic_device)
         else:
             self.mic_device.close()
-            if self._mic_mode != settings.mic_mode:
+            mic = settings.plugin_mic or default_mic_id(list_microphones()) or ""
+            if self._mic_mode != settings.mic_mode or self.mic_plugin.mic_id != mic:
+                # Switching mics is just writing into another mic's ring: no admin, no audio restart.
+                self.mic_plugin.close()
+                self.mic_plugin = PluginMicOutput(self.mic_mixer, mic)
                 self.mic_plugin.open()
         self._mic_mode = settings.mic_mode
+
+    def reopen_outputs(self, settings: Settings) -> None:
+        """After Windows audio restarts (e.g. the mic plugin was installed) every open stream is dead."""
+        self.monitor.close()
+        self.mic_device.close()
+        self.mic_plugin.close()
+        self._mic_mode = ""
+        self.apply(settings)
 
     def set_volumes(self, monitor: float | None = None, mic: float | None = None) -> None:
         if monitor is not None:
@@ -90,8 +103,12 @@ class AudioEngine:
         """Human-readable problems per output, empty string when fine."""
         if self._mic_mode == MIC_MODE_DEVICE:
             mic = self.mic_device.error
+        elif self.mic_plugin.waiting_for_mic or (self.mic_plugin.connected and not self.mic_plugin.mic_running):
+            mic = "waiting for an app to use the mic"  # installed; Windows runs it once something records
+        elif not self.mic_plugin.connected:
+            mic = self.mic_plugin.error or "connecting to the mic plugin…"
         else:
-            mic = "" if self.mic_plugin.connected else (self.mic_plugin.error or "connecting to the mic plugin…")
+            mic = ""
         return {"monitor": self.monitor.error, "mic": mic}
 
     def shutdown(self) -> None:

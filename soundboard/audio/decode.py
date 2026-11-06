@@ -39,12 +39,13 @@ def decode_file(path: Path, rate: int = ENGINE_RATE) -> np.ndarray:
 
 def _decode_with_ffmpeg(path: Path) -> tuple[np.ndarray, int]:
     """Fallback for formats libsndfile can't read (m4a, aac, opus in webm...)."""
-    import shutil
     import subprocess
 
-    ffmpeg = shutil.which("ffmpeg")
+    from ..tools import find
+
+    ffmpeg = find("ffmpeg")
     if not ffmpeg:
-        raise RuntimeError(f"Can't read {path.name}: install ffmpeg to play this format")
+        raise RuntimeError(f"Can't read {path.name}: ffmpeg is missing (reinstall Soundboard)")
     proc = subprocess.run(
         [ffmpeg, "-v", "error", "-i", str(path), "-f", "f32le", "-ac", "2", "-ar", str(ENGINE_RATE), "-"],
         capture_output=True,

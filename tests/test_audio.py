@@ -6,7 +6,10 @@ import pytest
 
 from soundboard.audio.decode import ENGINE_RATE, DecodeCache, decode_file, resample, to_stereo
 from soundboard.audio.mixer import Mixer
-from soundboard.audio.outputs import RING_HEADER, RING_HEADER_SIZE, RING_MAGIC, RING_VERSION, MicRing
+from soundboard.audio.outputs import (
+    HEARTBEAT_OFFSET, NOT_INSTALLED, NOT_RUNNING, RATE_OFFSET, READ_POS_OFFSET, RING_HEADER, RING_HEADER_SIZE, RING_MAGIC, RING_VERSION,
+    WRITE_POS_OFFSET, MicRing, PluginMicOutput, StreamResampler, tick_ms,
+)
 
 
 def test_to_stereo_duplicates_mono():
@@ -57,10 +60,18 @@ def test_mixer_stop_one():
     assert m.progress("b") == 0.0
 
 
-def _make_ring(name: str, capacity: int) -> mmap.mmap:
+def _make_ring(name: str, capacity: int, rate: int = 0) -> mmap.mmap:
+    """What the plugin does when it creates the ring (and, with rate, starts processing)."""
     buf = mmap.mmap(-1, RING_HEADER_SIZE + capacity * 8, tagname=name)
-    RING_HEADER.pack_into(buf, 0, RING_MAGIC, RING_VERSION, ENGINE_RATE, 2, capacity, 0, 0, 0)
+    RING_HEADER.pack_into(buf, 0, RING_MAGIC, RING_VERSION, rate, 2, capacity, 0, 0, 0, tick_ms())
     return buf
+
+
+def test_ring_header_matches_the_plugin():
+    # apo/src/ring.h static_asserts the same offsets.
+    assert RING_HEADER.size <= RING_HEADER_SIZE == 64
+    assert (RATE_OFFSET, WRITE_POS_OFFSET, READ_POS_OFFSET, HEARTBEAT_OFFSET) == (8, 24, 32, 40)
+    assert RING_VERSION == 2
 
 
 def test_mic_ring_wraps_and_respects_free_space():
@@ -72,7 +83,7 @@ def test_mic_ring_wraps_and_respects_free_space():
         assert ring.write(frames) == 6
         assert ring.write(frames) == 2  # only 2 free
         # plugin consumes 5 frames
-        struct.pack_into("<Q", plugin_side, 32, 5)
+        struct.pack_into("<Q", plugin_side, READ_POS_OFFSET, 5)
         assert ring.fill() == 3
         assert ring.write(np.full((4, 2), 9, dtype=np.float32)) == 4  # wraps around the end
         data = np.frombuffer(plugin_side[RING_HEADER_SIZE : RING_HEADER_SIZE + 64], dtype=np.float32).reshape(8, 2)
@@ -91,3 +102,99 @@ def test_mic_ring_rejects_uninitialized_memory():
             MicRing.open(name)
     finally:
         blank.close()
+
+
+def test_mic_ring_rejects_old_version():
+    name = "Local\\SoundboardTestRing3"
+    buf = mmap.mmap(-1, RING_HEADER_SIZE + 64, tagname=name)
+    RING_HEADER.pack_into(buf, 0, RING_MAGIC, 1, ENGINE_RATE, 2, 8, 0, 0, 0, 0)
+    try:
+        with pytest.raises(ConnectionError):
+            MicRing.open(name)
+    finally:
+        buf.close()
+
+
+def test_opening_never_creates_the_ring():
+    with pytest.raises(ConnectionError):
+        MicRing.open("Local\\SoundboardTestRingThatDoesNotExist")
+
+
+def test_mic_running_needs_rate_and_fresh_heartbeat():
+    name = "Local\\SoundboardTestRing4"
+    plugin_side = _make_ring(name, capacity=8)
+    ring = MicRing.open(name)
+    try:
+        assert not ring.mic_running()  # rate 0: the plugin isn't processing
+        struct.pack_into("<I", plugin_side, RATE_OFFSET, 44100)
+        now = tick_ms()
+        struct.pack_into("<Q", plugin_side, HEARTBEAT_OFFSET, now)
+        assert ring.mic_running(now + 10)
+        assert not ring.mic_running(now + 1000)  # nobody recording: audiodg stopped calling the plugin
+    finally:
+        ring.close()
+        plugin_side.close()
+
+
+@pytest.mark.parametrize("dst", [44100, 48000, 96000, 16000])
+def test_stream_resampler_keeps_pitch_and_is_seamless(dst):
+    t = np.arange(ENGINE_RATE) / ENGINE_RATE
+    tone = np.sin(2 * np.pi * 440 * t).astype(np.float32)
+    src = np.stack([tone, tone], axis=1)
+    r = StreamResampler(ENGINE_RATE, dst)
+    out = np.concatenate([r.process(src[i : i + 333]) for i in range(0, len(src), 333)])  # odd block size
+    assert abs(len(out) - dst) <= 1
+    # Resampling interpolates from the frame before each block, so it runs one source frame late
+    # and the first frames blend in from silence.
+    delay = 0 if dst == ENGINE_RATE else 1 / ENGINE_RATE
+    expected = np.sin(2 * np.pi * 440 * (np.arange(len(out)) / dst - delay))
+    assert np.max(np.abs(out[2:, 0] - expected[2:])) < 0.02  # same tone, no glitches at block edges
+
+
+def test_stream_resampler_source_frames_for():
+    r = StreamResampler(48000, 44100)
+    total = 0
+    for _ in range(50):
+        total += len(r.process(np.zeros((r.source_frames_for(441), 2), dtype=np.float32)))
+    assert abs(total - 50 * 441) <= 50  # asks for about the right amount every time
+
+
+def test_plugin_output_feeds_at_the_mic_rate(monkeypatch):
+    name = "Local\\SoundboardTestRing5"
+    plugin_side = _make_ring(name, capacity=4096, rate=44100)
+    mixer = Mixer()
+    mixer.add("beep", np.full((48000, 2), 0.5, dtype=np.float32))
+    out = PluginMicOutput(mixer, ring_name=name)
+    out._ring = MicRing.open(name)
+    try:
+        struct.pack_into("<Q", plugin_side, HEARTBEAT_OFFSET, tick_ms())
+        out.feed_once()
+        fill = out._ring.fill()
+        assert abs(fill - 44100 // 50) <= 2  # ~20 ms at the mic's rate
+        data = np.frombuffer(plugin_side[RING_HEADER_SIZE : RING_HEADER_SIZE + fill * 8], dtype=np.float32)
+        assert np.allclose(data[2:], 0.5, atol=1e-3)  # first frame blends from silence
+
+        struct.pack_into("<Q", plugin_side, HEARTBEAT_OFFSET, 0)  # mic went idle
+        before = mixer.progress("beep")
+        out.feed_once()
+        assert out._ring.fill() == fill  # nothing written...
+        assert mixer.progress("beep") > before  # ...but the sound kept moving so it won't play late
+    finally:
+        out._ring.close()
+        out._ring = None
+        plugin_side.close()
+
+
+@pytest.mark.parametrize("has_plugin, error, waiting, shown", [
+    (True, NOT_RUNNING, True, ""),                    # plugin on this mic, no app has the mic open
+    (False, NOT_RUNNING, False, NOT_INSTALLED),       # this mic doesn't have the plugin
+    (True, "unsupported ring format", False, "unsupported ring format"),  # a real problem
+])
+def test_plugin_connect_failure_explains_itself(monkeypatch, has_plugin, error, waiting, shown):
+    from soundboard.audio import outputs
+    monkeypatch.setattr(outputs, "has_plugin", lambda values: has_plugin)
+    monkeypatch.setattr(outputs, "read_fx", lambda mic_id: {})
+    out = PluginMicOutput(Mixer(), "{yeti}")
+    assert out.ring_name == "Global\\SoundboardMicRing.{yeti}"
+    out._connect_failed(error)
+    assert out.waiting_for_mic is waiting and out.error == shown
