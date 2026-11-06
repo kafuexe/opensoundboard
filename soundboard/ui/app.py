@@ -16,12 +16,14 @@ from .browse_view import BrowseView
 from .dispatch import Dispatcher
 from .library_view import LibraryView
 from .settings_view import SettingsView
+from .spotify_view import SpotifyView
 from .tray import Tray
 from .youtube_view import YouTubeView
 
 ICON = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
 
-NAV = [("library", "My sounds"), ("browse", "Sound Buttons World"), ("youtube", "YouTube"), ("settings", "Settings")]
+NAV = [("library", "My sounds"), ("browse", "Sound Buttons World"), ("youtube", "YouTube"), ("spotify", "Spotify"),
+       ("settings", "Settings")]
 
 
 class Fader(ctk.CTkFrame):
@@ -74,6 +76,7 @@ class App(ctk.CTk, drop.WindowMixin):
             "library": LibraryView(self.content, self),
             "browse": BrowseView(self.content, self),
             "youtube": YouTubeView(self.content, self),
+            "spotify": SpotifyView(self.content, self),
             "settings": SettingsView(self.content, self),
         }
         self._build_on_air_bar()
@@ -99,7 +102,8 @@ class App(ctk.CTk, drop.WindowMixin):
         side.grid(row=0, column=0, sticky="nsw")
         side.grid_propagate(False)
         side.grid_columnconfigure(0, weight=1)
-        side.grid_rowconfigure(5, weight=1)
+        spacer = len(NAV) + 1  # the row under the nav that soaks up spare height
+        side.grid_rowconfigure(spacer, weight=1)
 
         t.label(side, "Soundboard", size=22, weight="bold").grid(row=0, column=0, sticky="w", padx=20, pady=(22, 18))
         self.nav_buttons = {}
@@ -111,7 +115,7 @@ class App(ctk.CTk, drop.WindowMixin):
             self.nav_buttons[key] = btn
 
         mix = ctk.CTkFrame(side, fg_color="transparent")
-        mix.grid(row=6, column=0, sticky="ew", padx=20, pady=(0, 20))
+        mix.grid(row=spacer + 1, column=0, sticky="ew", padx=20, pady=(0, 20))
         mix.grid_columnconfigure(0, weight=1)
         self.mic_fader = Fader(mix, "Into my mic", self.settings.mic_volume,
                                lambda v: self.engine.set_volumes(mic=v), lambda v: self.update_settings(mic_volume=round(v, 2)))

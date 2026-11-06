@@ -54,8 +54,9 @@ class YouTubeView(ctk.CTkFrame):
 
         self.url.bind("<Return>", lambda _e: self.start())
         if not youtube.ffmpeg_path():
-            self.status.configure(text="ffmpeg isn't installed, so YouTube downloads won't work yet. "
-                                       "Install it with: winget install ffmpeg", text_color=t.DANGER)
+            self.status.configure(text="ffmpeg is missing, so YouTube downloads won't work. Reinstall Soundboard "
+                                       "(from source: run installer\build.ps1 or winget install ffmpeg).",
+                                  text_color=t.DANGER)
 
     def on_show(self) -> None:
         self.url.focus_set()

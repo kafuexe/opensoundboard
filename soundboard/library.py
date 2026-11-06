@@ -22,7 +22,7 @@ class Sound:
     file: str  # file name inside sounds_dir()
     hotkey: str = ""
     volume: float = 1.0  # per-sound gain, 0..1.5
-    source: str = "file"  # file | soundbuttonsworld | youtube
+    source: str = "file"  # file | soundbuttonsworld | youtube | spotify
     origin_id: str = ""  # e.g. the site's file name, so we can show "Added" in search results
     folder: str = ""  # "" = unsorted
 
