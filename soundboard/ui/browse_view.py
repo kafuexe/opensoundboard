@@ -222,7 +222,7 @@ class BrowseView(ctk.CTkFrame):
             row.adding.cancel()
             return
         token = row.adding = CancelToken()
-        row.add.configure(text="Cancel", fg_color="transparent", text_color=t.DANGER, hover_color="#4A2A2A")
+        row.add.configure(text="Cancel", fg_color="transparent", text_color=t.DANGER, hover_color=t.DANGER_HOVER)
         folder = self.app.target_folder()
 
         def reset_button() -> None:

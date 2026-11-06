@@ -1,0 +1,135 @@
+/*
+  Soundboard's built-in theme, in the shadcn/ui format tweakcn.com exports, so it can be edited
+  there and imported back (Settings > Theme > Import CSS file).
+
+  What the app uses:
+    --background            window background
+    --sidebar               sidebar and bars (falls back to --card)
+    --muted                 sound pads and inputs
+    --border                lines and outlines
+    --foreground            text
+    --muted-foreground      secondary text
+    --primary               "on air": the highlight while a sound plays
+    --primary-foreground    text on --primary
+    --destructive           errors and Delete
+    --destructive-foreground text on --destructive
+    --success               "Connected" (optional; not a standard shadcn variable)
+    --font-sans             first family, if it's installed
+    --radius                corner rounding
+  :root is the light theme, .dark the dark one.
+*/
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #f3f4f7;
+  --foreground: #1b2130;
+  --card: #ffffff;
+  --card-foreground: #1b2130;
+  --popover: #ffffff;
+  --popover-foreground: #1b2130;
+  --primary: #e59e1b;
+  --primary-foreground: #2a1e05;
+  --secondary: #ffffff;
+  --secondary-foreground: #1b2130;
+  --muted: #ffffff;
+  --muted-foreground: #5d6679;
+  --accent: #e8ebf1;
+  --accent-foreground: #1b2130;
+  --destructive: #c8432f;
+  --destructive-foreground: #ffffff;
+  --success: #2f8f57;
+  --border: #cdd3de;
+  --input: #cdd3de;
+  --ring: #8d97aa;
+  --sidebar: #e8ebf1;
+  --sidebar-foreground: #1b2130;
+  --sidebar-primary: #e59e1b;
+  --sidebar-primary-foreground: #2a1e05;
+  --sidebar-accent: #dde1e9;
+  --sidebar-accent-foreground: #1b2130;
+  --sidebar-border: #cdd3de;
+  --sidebar-ring: #8d97aa;
+  --font-sans: Bahnschrift, "Segoe UI", ui-sans-serif, sans-serif;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #1b2130;
+  --foreground: #e8ebf1;
+  --card: #232b3b;
+  --card-foreground: #e8ebf1;
+  --popover: #232b3b;
+  --popover-foreground: #e8ebf1;
+  --primary: #f2b33d;
+  --primary-foreground: #2a1e05;
+  --secondary: #2e3850;
+  --secondary-foreground: #e8ebf1;
+  --muted: #2e3850;
+  --muted-foreground: #8d97aa;
+  --accent: #38445f;
+  --accent-foreground: #e8ebf1;
+  --destructive: #e2604b;
+  --destructive-foreground: #ffffff;
+  --success: #7fc79a;
+  --border: #3a465e;
+  --input: #3a465e;
+  --ring: #8d97aa;
+  --sidebar: #232b3b;
+  --sidebar-foreground: #e8ebf1;
+  --sidebar-primary: #f2b33d;
+  --sidebar-primary-foreground: #2a1e05;
+  --sidebar-accent: #2e3850;
+  --sidebar-accent-foreground: #e8ebf1;
+  --sidebar-border: #3a465e;
+  --sidebar-ring: #8d97aa;
+  --font-sans: Bahnschrift, "Segoe UI", ui-sans-serif, sans-serif;
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

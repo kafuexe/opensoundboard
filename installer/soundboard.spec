@@ -7,7 +7,8 @@ root = Path(SPECPATH).parent
 a = Analysis(
     [str(root / "installer" / "launch.py")],
     pathex=[str(root)],
-    datas=[(str(root / "soundboard" / "assets"), "soundboard/assets")],
+    datas=[(str(root / "soundboard" / "assets"), "soundboard/assets"),
+           (str(root / "soundboard" / "themes"), "soundboard/themes")],
     hiddenimports=["soundboard.micplugin.admin", "pystray._win32"],  # imported lazily
     excludes=["pytest"],
 )

@@ -96,7 +96,7 @@ class SoundDialog(ctk.CTkToplevel):
         self.vol_text = t.label(vol_row, "", color=t.MUTED, size=13)
         self.vol_text.pack(side="right")
         self.volume = ctk.CTkSlider(body, from_=0, to=1.5, width=400, progress_color=t.TEXT, button_color=t.TEXT,
-                                    button_hover_color="#FFFFFF", fg_color=t.RAISED,
+                                    button_hover_color=t.TEXT_HOVER, fg_color=t.RAISED,
                                     command=lambda v: self.vol_text.configure(text=f"{round(v * 100)}%"))
         self.volume.set(sound.volume)
         self.vol_text.configure(text=f"{round(sound.volume * 100)}%")

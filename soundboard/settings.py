@@ -24,6 +24,8 @@ class Settings:
     hotkeys_enabled: bool = True
     minimize_to: str = "taskbar"  # taskbar | tray
     close_to: str = "quit"  # quit | tray (keep running in the tray)
+    theme: str = "soundboard"  # a CSS file in soundboard/themes or %APPDATA%/Soundboard/themes
+    theme_mode: str = "dark"  # dark | light
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

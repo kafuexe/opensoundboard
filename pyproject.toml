@@ -27,4 +27,4 @@ soundboard = "soundboard.cli:main"
 include = ["soundboard*"]
 
 [tool.setuptools.package-data]
-soundboard = ["assets/*"]
+soundboard = ["assets/*", "themes/*.css"]

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+from tkinter import filedialog
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -12,6 +14,7 @@ from ..micplugin import mics as plugin_mics
 from ..audio.outputs import list_output_devices
 from ..settings import MIC_MODE_DEVICE, MIC_MODE_PLUGIN
 from . import theme as t
+from . import themes
 from .sound_dialog import HotkeyField
 
 if TYPE_CHECKING:
@@ -20,6 +23,7 @@ if TYPE_CHECKING:
 DEFAULT_DEVICE = "System default"
 MINIMIZE_LABELS = {"taskbar": "Keep it in the taskbar", "tray": "Hide it in the tray"}
 CLOSE_LABELS = {"quit": "Quit Soundboard", "tray": "Keep running in the tray"}
+MODE_LIGHT_DARK = {"dark": "Dark", "light": "Light"}
 NO_MIC = "Pick a microphone"
 MODE_LABELS = {MIC_MODE_PLUGIN: "Mic plugin", MIC_MODE_DEVICE: "Output device"}
 MODE_HELP = {
@@ -84,7 +88,7 @@ class SettingsView(ctk.CTkFrame):
         self.stop_key = HotkeyField(body, app, s.stop_hotkey, on_change=self._stop_key_changed)
         self.stop_key.pack(anchor="w", padx=6, pady=(4, 12))
         self.hotkeys_on = ctk.CTkCheckBox(body, text="Hotkeys work everywhere, even in games", font=t.font(14),
-                                          text_color=t.TEXT, fg_color=t.TEXT, hover_color="#FFFFFF",
+                                          text_color=t.TEXT, fg_color=t.TEXT, hover_color=t.TEXT_HOVER,
                                           checkmark_color=t.CONSOLE, border_color=t.LINE,
                                           command=self._hotkeys_toggled)
         if s.hotkeys_enabled:
@@ -101,10 +105,29 @@ class SettingsView(ctk.CTkFrame):
                       "icon to bring the window back, or right-click it to quit.",
                 color=t.MUTED, size=13, justify="left", wraplength=560).pack(anchor="w", padx=6, pady=(8, 0))
 
+        self._section(body, "Theme")
+        t.label(body, "Colors come from a shadcn/ui theme file, the kind tweakcn.com exports. Make one there, "
+                      "copy its CSS into a .css file and import it.",
+                color=t.MUTED, size=13, justify="left", wraplength=560).pack(anchor="w", padx=6, pady=(0, 8))
+        theme_row = ctk.CTkFrame(body, fg_color="transparent")
+        theme_row.pack(anchor="w", padx=6)
+        self.theme_menu = self._menu(theme_row, sorted(themes.available()), self._theme_picked)
+        self.theme_menu.configure(width=260)
+        self.theme_menu.set(s.theme if s.theme in themes.available() else themes.DEFAULT_THEME)
+        self.theme_menu.pack(side="left")
+        t.button(theme_row, "Import CSS file…", self._import_theme, width=150).pack(side="left", padx=(10, 0))
+        t.button(theme_row, "Open themes folder", lambda: os.startfile(themes.user_dir()), kind="ghost",
+                 width=150).pack(side="left", padx=(6, 0))
+        self.theme_mode = self._choice(body, MODE_LIGHT_DARK, s.theme_mode, self._theme_mode_picked)
+        self.theme_note = ctk.CTkFrame(body, fg_color="transparent")
+        self.theme_note_text = t.label(self.theme_note, "", color=t.AMBER, size=13)
+        self.theme_note_text.pack(side="left")
+        t.button(self.theme_note, "Restart now", self.app.restart, kind="primary", width=120).pack(side="left", padx=(10, 0))
+
         self._section(body, "Playback")
         self.one_at_a_time = ctk.CTkCheckBox(body, text="Starting a sound stops the one already playing",
                                              font=t.font(14), text_color=t.TEXT, fg_color=t.TEXT,
-                                             hover_color="#FFFFFF", checkmark_color=t.CONSOLE, border_color=t.LINE,
+                                             hover_color=t.TEXT_HOVER, checkmark_color=t.CONSOLE, border_color=t.LINE,
                                              command=self._one_at_a_time_toggled)
         if s.one_at_a_time:
             self.one_at_a_time.select()
@@ -248,6 +271,33 @@ class SettingsView(ctk.CTkFrame):
 
     def _monitor_device_changed(self, name: str) -> None:
         self.app.update_settings(monitor_device="" if name == DEFAULT_DEVICE else name)
+
+    # --- theme -----------------------------------------------------------------------------------
+    def _theme_picked(self, name: str) -> None:
+        self.app.update_settings(theme=name)
+        self._theme_changed()
+
+    def _theme_mode_picked(self, mode: str) -> None:
+        self.app.update_settings(theme_mode=mode)
+        self._theme_changed()
+
+    def _theme_changed(self) -> None:
+        self.theme_note_text.configure(text="The new theme shows after a restart.")
+        self.theme_note.pack(anchor="w", padx=6, pady=(10, 0), after=self.theme_mode)
+
+    def _import_theme(self) -> None:
+        path = filedialog.askopenfilename(parent=self, title="Import a theme", filetypes=[("CSS theme", "*.css")])
+        if not path:
+            return
+        try:
+            name = themes.import_file(Path(path))
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            self.app.toast(f"Can't use that file: {exc}", error=True)
+            return
+        self.theme_menu.configure(values=sorted(themes.available()))
+        self.theme_menu.set(name)
+        self._theme_picked(name)
+        self.app.toast(f"Imported “{name}”")
 
     def _stop_key_changed(self, combo: str) -> None:
         owner = self.app.library.hotkey_owner(combo) if combo else ""

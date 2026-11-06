@@ -34,7 +34,7 @@ class Fader(ctk.CTkFrame):
         self.value_label = t.label(self, "", size=13, color=t.TEXT)
         self.value_label.grid(row=0, column=1, sticky="e")
         self.slider = ctk.CTkSlider(self, from_=0, to=1, progress_color=t.TEXT, button_color=t.TEXT,
-                                    button_hover_color="#FFFFFF", fg_color=t.RAISED, height=16,
+                                    button_hover_color=t.TEXT_HOVER, fg_color=t.RAISED, height=16,
                                     command=lambda v: (self._show(v), on_change(v)))
         self.slider.set(value)
         self.slider.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 0))
@@ -47,7 +47,8 @@ class Fader(ctk.CTkFrame):
 
 class App(ctk.CTk, drop.WindowMixin):
     def __init__(self):
-        t.setup()
+        settings = Settings.load()
+        t.setup(settings.theme, settings.theme_mode)
         super().__init__()
         self.title("Soundboard")
         self.iconbitmap(str(ICON))  # also stops customtkinter swapping in its own icon
@@ -55,7 +56,7 @@ class App(ctk.CTk, drop.WindowMixin):
         self.minsize(820, 520)
         self.configure(fg_color=t.CONSOLE)
 
-        self.settings = Settings.load()
+        self.settings = settings
         self.library = Library.load()
         self.dispatch = Dispatcher(self)
         self.engine = AudioEngine(self.settings)
@@ -160,7 +161,7 @@ class App(ctk.CTk, drop.WindowMixin):
         if self._toast is not None:
             self._toast.destroy()
         self._toast = ctk.CTkLabel(self, text=text, font=t.font(13), corner_radius=8, height=34, padx=14,
-                                   fg_color=t.DANGER if error else t.TEXT, text_color="#FFFFFF" if error else t.CONSOLE)
+                                   fg_color=t.DANGER if error else t.TEXT, text_color=t.DANGER_INK if error else t.CONSOLE)
         self._toast.place(relx=1.0, rely=1.0, x=-20, y=-72, anchor="se")
         toast = self._toast
         self.after(4500 if error else 2600, lambda: toast.winfo_exists() and toast.destroy())
@@ -295,6 +296,14 @@ class App(ctk.CTk, drop.WindowMixin):
         self.state("normal")
         self.lift()
         self.focus_force()
+
+    def restart(self) -> None:
+        """Start a fresh copy (e.g. to load a new theme) and close this one."""
+        import subprocess
+        import sys
+        args = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "soundboard"]
+        subprocess.Popen(args, cwd=str(Path(__file__).resolve().parents[2]))
+        self._quit()
 
     def _quit(self) -> None:
         self.tray.stop()
