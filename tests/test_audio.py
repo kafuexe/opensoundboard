@@ -198,3 +198,38 @@ def test_plugin_connect_failure_explains_itself(monkeypatch, has_plugin, error, 
     assert out.ring_name == "Global\\SoundboardMicRing.{yeti}"
     out._connect_failed(error)
     assert out.waiting_for_mic is waiting and out.error == shown
+
+
+def test_cache_holds_short_sounds_as_16_bit_and_respects_its_size_cap(wav_file):
+    cache = DecodeCache(max_bytes=200_000)
+    paths = [wav_file(f"s{i}.wav", seconds=0.5) for i in range(3)]  # 24000 frames x 4 bytes = 96 KB each
+    first = cache.get(paths[0])
+    assert first.dtype == np.int16 and first.shape == (24000, 2)
+    cache.get(paths[1])
+    cache.get(paths[2])  # 288 KB > 200 KB: the oldest goes
+    assert cache.size_bytes <= 200_000
+    assert cache.get(paths[2]) is cache.get(paths[2])
+    assert cache.get(paths[0]) is not first  # was evicted, decoded again
+
+
+def test_cache_doesnt_keep_long_sounds(wav_file):
+    cache = DecodeCache(max_cached_seconds=1.0)
+    long_sound = wav_file("song.wav", seconds=2)
+    data = cache.get(long_sound)
+    assert len(data) == 2 * ENGINE_RATE  # still playable
+    assert cache.size_bytes == 0 and cache.get(long_sound) is not data
+
+
+def test_16_bit_voices_mix_like_float_ones():
+    as_float = np.full((480, 2), 0.5, dtype=np.float32)
+    as_int16 = (as_float * 32767).astype(np.int16)
+    a, b = Mixer(), Mixer()
+    a.add("x", as_float, gain=0.8)
+    b.add("x", as_int16, gain=0.8)
+    assert np.allclose(a.render(480), b.render(480), atol=1e-4)
+
+
+def test_numpy_math_library_is_limited_to_one_thread():
+    import os
+    import soundboard  # noqa: F401  (sets it on import)
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"

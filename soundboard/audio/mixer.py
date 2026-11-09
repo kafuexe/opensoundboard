@@ -11,7 +11,7 @@ import numpy as np
 @dataclass
 class Voice:
     key: str
-    data: np.ndarray  # (frames, 2) float32
+    data: np.ndarray  # (frames, 2): float32, or int16 from the decode cache
     gain: float
     pos: int = 0
 
@@ -107,7 +107,10 @@ class Mixer:
             alive = []
             for voice in self._voices:
                 chunk = voice.data[voice.pos : voice.pos + frames]
-                out[: len(chunk)] += chunk * voice.gain
+                if chunk.dtype == np.int16:
+                    out[: len(chunk)] += chunk.astype(np.float32) * (voice.gain / 32767)
+                else:
+                    out[: len(chunk)] += chunk * voice.gain
                 voice.pos += len(chunk)
                 if voice.pos < len(voice.data):
                     alive.append(voice)

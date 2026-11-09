@@ -12,8 +12,6 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
-import requests
-
 from . import youtube
 from .cancel import CancelToken
 
@@ -60,6 +58,8 @@ def fetch(url: str) -> SpotifyLink:
     if not parsed:
         raise ValueError("That isn't a Spotify track, album or playlist link")
     kind, spotify_id = parsed
+    import requests  # loaded on first use (~15 MB)
+
     resp = requests.get(f"https://open.spotify.com/embed/{kind}/{spotify_id}", headers=HEADERS, timeout=TIMEOUT)
     if resp.status_code == 404:
         raise ValueError("Spotify says that link doesn't exist (or it's private)")

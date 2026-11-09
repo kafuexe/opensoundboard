@@ -6,8 +6,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-import requests
-
 from .cancel import CancelToken
 
 BASE = "https://soundbuttonsworld.com"
@@ -59,9 +57,16 @@ def parse_page(payload: dict, page: int, page_size: int) -> Page:
 
 
 class SoundButtonsWorld:
-    def __init__(self, session: requests.Session | None = None):
-        self.session = session or requests.Session()
-        self.session.headers.update(HEADERS)
+    def __init__(self, session=None):
+        self._session = session  # made on first use: requests costs ~15 MB, so it loads only if needed
+
+    @property
+    def session(self):
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+            self._session.headers.update(HEADERS)
+        return self._session
 
     def _get(self, path: str, params: dict) -> dict:
         resp = self.session.get(f"{BASE}/api/{path}", params=params, timeout=TIMEOUT)

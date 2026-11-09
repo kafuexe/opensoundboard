@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import gc
 from pathlib import Path
 
 import customtkinter as ctk
@@ -22,6 +23,15 @@ from .tray import Tray
 from .youtube_view import YouTubeView
 
 ICON = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
+
+
+def trim_working_set() -> None:
+    """Ask Windows to page out whatever this process isn't using right now. Nothing is lost:
+    pages come back when touched. Task Manager's Memory column drops accordingly."""
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    kernel32.SetProcessWorkingSetSize.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
+    kernel32.SetProcessWorkingSetSize(kernel32.GetCurrentProcess(), ctypes.c_size_t(-1), ctypes.c_size_t(-1))
 
 NAV = [("library", "My sounds"), ("browse", "Sound Buttons World"), ("youtube", "YouTube"), ("spotify", "Spotify"),
        ("stream", "Stream an app"), ("settings", "Settings")]
@@ -94,6 +104,7 @@ class App(ctk.CTk, drop.WindowMixin):
         self.tray = Tray(ICON, self.dispatch.call, on_show=self.show_window, on_stop_all=self.engine.stop_all,
                          on_quit=self._quit)
         self._told_about_tray = False
+        self._hidden = False
         self.protocol("WM_DELETE_WINDOW", self._close_clicked)
         self.bind("<Unmap>", self._on_unmap)
         self.after(80, self._tick)
@@ -252,6 +263,9 @@ class App(ctk.CTk, drop.WindowMixin):
 
     def _tick(self) -> None:
         """Poll playback state ~12x a second to drive the pads and the on-air bar."""
+        if self._hidden:  # nothing to draw: just keep the loop alive, slowly
+            self.after(500, self._tick)
+            return
         playing = self.engine.playing()
         self.views["library"].set_live(playing)
         self.views["browse"].tick()
@@ -296,11 +310,24 @@ class App(ctk.CTk, drop.WindowMixin):
         """Hide the window; hotkeys keep working and the tray icon brings it back."""
         self.withdraw()
         self.tray.show()
+        self._hidden = True
+        self.after(500, self._trim_memory)
         if not self._told_about_tray:
             self._told_about_tray = True
             self.tray.notify("Soundboard is still running", "Your hotkeys still work. Click the tray icon to open it.")
 
+    def _trim_memory(self) -> None:
+        """While hidden in the tray: drop cached sounds and give unused memory back to Windows.
+        Hotkeys still work; the first press of each sound decodes it again (a few ms for a short one)."""
+        if not self._hidden:
+            return
+        self.engine.cache.clear()
+        gc.collect()
+        trim_working_set()
+        self.after(60_000, self._trim_memory)  # pages creep back in slowly; trim again now and then
+
     def show_window(self) -> None:
+        self._hidden = False
         self.tray.hide()
         self.deiconify()
         self.state("normal")
